@@ -596,3 +596,31 @@ async def test_max_model_calls_persists_across_approval_resume(monkeypatch):
     assert called is False
     assert any(ev == "notice" and data.get("text") == "step_limit" for ev, data in published)
     assert any(ev == "done" and data.get("status") == "completed" for ev, data in published)
+
+
+@pytest.mark.asyncio
+async def test_status_route_reports_daily_usage_only_when_the_agent_is_available(monkeypatch):
+    from src.api.routes import agent as agent_routes
+
+    ctx = SimpleNamespace(user_id="user-1", team_id=None)
+    monkeypatch.setattr(agent_routes, "_ctx", AsyncMock(return_value=ctx))
+    monkeypatch.setattr(agent_routes, "_enforce_endpoint_limit", AsyncMock())
+    monkeypatch.setattr(agent_routes, "home_mode", AsyncMock(return_value="agent"))
+    monkeypatch.setattr(agent_routes, "offer_choice", AsyncMock(return_value=False))
+    monkeypatch.setattr(agent_routes, "agent_model", lambda: "model-x")
+    monkeypatch.setattr(agent_routes, "daily_turn_limit", lambda: 5)
+    usage = AsyncMock(return_value={"turns": 5, "retry_after": 3600})
+    monkeypatch.setattr(agent_routes.store, "daily_turn_usage", usage)
+    request = SimpleNamespace(headers={}, app=SimpleNamespace(state=SimpleNamespace()))
+    db = SimpleNamespace(close=AsyncMock())
+
+    monkeypatch.setattr(agent_routes, "agent_access", AsyncMock(return_value={"available": True, "reason": None}))
+    body = await agent_routes.status(request, db)
+    assert body["daily_limit"] == 5 and body["turns_today"] == 5 and body["daily_retry_after"] == 3600
+    usage.assert_awaited_once_with("user-1", 5)
+
+    usage.reset_mock()
+    monkeypatch.setattr(agent_routes, "agent_access", AsyncMock(return_value={"available": False, "reason": "plan"}))
+    body = await agent_routes.status(request, db)
+    assert body["turns_today"] == 0 and body["daily_retry_after"] is None
+    usage.assert_not_awaited()

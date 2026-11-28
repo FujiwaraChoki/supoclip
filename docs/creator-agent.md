@@ -25,8 +25,14 @@ scheduled, publishing, published and failed post on one month or week grid.
   - Turn limits and Pro trial counts are enforced atomically under a per-user PostgreSQL advisory lock against `agent_turn_events`, so deleting conversations or racing requests across chats cannot bypass them.
   - Per-user Redis endpoint limits (`AGENT_REQUEST_RATE_LIMIT`, default 120 reads/60 s; `AGENT_WRITE_RATE_LIMIT`, default 30 writes/60 s) and concurrent SSE stream cap (`AGENT_MAX_SSE_STREAMS`, default 6, 429 `AGENT_TOO_MANY_STREAMS`). All 429 responses include `Retry-After`.
 
+  - Limit 429s carry `detail: {code, message, retry_after}`. The web and iOS composers show one quiet line
+    instead of a toast: the daily cap disables the composer with "Resets in ~Xh", a burst counts `retry_after`
+    down with Send paused, and the concurrent cap explains itself without blocking. The draft is kept.
+
 `GET /agent/status` returns `available`, `reason`, `access` (`full` | `trial`), `trial` (`{limit, used}`),
-`plan`, `home_mode` and `offer_choice`.
+`plan`, `home_mode`, `offer_choice`, `daily_limit`, `turns_today` (rolling 24 hours) and `daily_retry_after`
+(seconds until a turn frees up once `turns_today` reaches `daily_limit`, else `null`), so a page opened at
+the cap shows it before anyone sends.
 
 ## Home screen choice
 

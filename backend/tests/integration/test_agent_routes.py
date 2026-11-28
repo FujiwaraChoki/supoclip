@@ -42,6 +42,44 @@ async def test_status_follows_the_feature_flag(client, auth_headers, agent_app, 
 
 
 @pytest.mark.asyncio
+async def test_status_reports_daily_usage_and_when_the_cap_frees_up(client, auth_headers, agent_app, db_session, monkeypatch):
+    monkeypatch.setenv("AGENT_DAILY_TURN_LIMIT", "3")
+    status = (await client.get("/agent/status", headers=auth_headers)).json()
+    assert status["daily_limit"] == 3 and status["turns_today"] == 0 and status["daily_retry_after"] is None
+
+    # Three turns in the window (one older than a day, which no longer counts).
+    for run_id, hours_ago in (("turn-old", 25), ("turn-a", 20), ("turn-b", 2)):
+        await db_session.execute(
+            text(
+                "INSERT INTO agent_turn_events (run_id, user_id, created_at) "
+                "VALUES (:run_id, 'user-1', NOW() - make_interval(hours => :hours))"
+            ),
+            {"run_id": run_id, "hours": hours_ago},
+        )
+    await db_session.commit()
+    status = (await client.get("/agent/status", headers=auth_headers)).json()
+    assert status["turns_today"] == 2 and status["daily_retry_after"] is None
+
+    await db_session.execute(
+        text("INSERT INTO agent_turn_events (run_id, user_id, created_at) VALUES ('turn-c', 'user-1', NOW() - INTERVAL '1 hour')")
+    )
+    await db_session.commit()
+    status = (await client.get("/agent/status", headers=auth_headers)).json()
+    assert status["turns_today"] == 3
+    # The 20-hour-old turn leaves the window first: about four hours from now.
+    assert 4 * 3600 - 60 <= status["daily_retry_after"] <= 4 * 3600
+
+    blocked = await client.post("/agent/conversations", headers=auth_headers, json={"message": "one more"})
+    assert blocked.status_code == 429 and blocked.json()["detail"]["code"] == "AGENT_DAILY_LIMIT"
+    assert abs(blocked.json()["detail"]["retry_after"] - status["daily_retry_after"]) <= 60
+
+    # Lowering the cap below today's count waits for enough turns to leave, not just the oldest.
+    monkeypatch.setenv("AGENT_DAILY_TURN_LIMIT", "2")
+    status = (await client.get("/agent/status", headers=auth_headers)).json()
+    assert 22 * 3600 - 60 <= status["daily_retry_after"] <= 22 * 3600
+
+
+@pytest.mark.asyncio
 async def test_a_chat_starts_one_turn_at_a_time(client, auth_headers, agent_app, db_session):
     created = await client.post(
         "/agent/conversations", headers=auth_headers,

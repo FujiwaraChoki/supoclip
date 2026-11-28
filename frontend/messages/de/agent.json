@@ -451,5 +451,19 @@
     "locked": "Agent gehört zu Creator.",
     "used": "Deine kostenlosen Nachrichten sind aufgebraucht.",
     "cta": "Creator holen"
+  },
+  "limit": {
+    "daily": "Tageslimit erreicht",
+    "resetsIn": "Wieder verfügbar in ~{time}",
+    "resetsWithin": "Wieder verfügbar innerhalb von 24 Stunden",
+    "tooFast": "Zu schnell",
+    "tryAgainIn": "Erneut versuchen in {time}",
+    "concurrent": "Warte, bis eine Antwort in einem anderen Chat fertig ist, bevor du eine neue startest",
+    "placeholder": "Wieder da, sobald dein Tageslimit zurückgesetzt ist",
+    "units": {
+      "hours": "{count} Std.",
+      "minutes": "{count} Min.",
+      "seconds": "{count} s"
+    }
   }
 }

@@ -606,6 +606,45 @@ async def turns_today(user_id: str) -> int:
     return int(row.n if row else 0)
 
 
+async def daily_turn_usage(user_id: str, daily_limit: int) -> dict:
+    """Turns in the rolling 24-hour window and, at the cap, seconds until one frees up.
+
+    ``retry_after`` is when the oldest turn that keeps the account at the cap leaves the
+    window (the same ledger ``_check_limits_in_tx`` enforces), or None below the cap.
+    """
+    async with AsyncSessionLocal() as db:
+        row = (
+            await db.execute(
+                text(
+                    "SELECT COUNT(*) AS n FROM agent_turn_events WHERE user_id = :user_id "
+                    "AND created_at > NOW() - INTERVAL '24 hours'"
+                ),
+                {"user_id": user_id},
+            )
+        ).fetchone()
+        turns = int(row.n if row else 0)
+        retry_after: Optional[int] = None
+        if daily_limit > 0 and turns >= daily_limit:
+            freed = (
+                await db.execute(
+                    text(
+                        """
+                        SELECT GREATEST(1, CEIL(EXTRACT(EPOCH FROM (
+                            created_at + INTERVAL '24 hours' - NOW()
+                        ))))::INTEGER AS retry_after
+                        FROM agent_turn_events
+                        WHERE user_id = :user_id AND created_at > NOW() - INTERVAL '24 hours'
+                        ORDER BY created_at ASC
+                        OFFSET :offset LIMIT 1
+                        """
+                    ),
+                    {"user_id": user_id, "offset": turns - daily_limit},
+                )
+            ).fetchone()
+            retry_after = int(freed.retry_after) if freed and freed.retry_after is not None else 60
+    return {"turns": turns, "retry_after": retry_after}
+
+
 # ----------------------------------------------------------------------
 # Background jobs
 # ----------------------------------------------------------------------

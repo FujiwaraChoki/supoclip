@@ -144,12 +144,24 @@ async def status(request: Request, db: AsyncSession = Depends(get_db)):
     await _enforce_endpoint_limit(request, ctx, write=False)
     access = await agent_access(db, ctx.user_id, ctx.team_id, client_platform(request))
     mode = await home_mode(db, ctx.user_id)
+    daily_limit = daily_turn_limit()
+    choice = await offer_choice(db, ctx.user_id, access, mode)
+    await db.close()
+    # Only an account that can send has a daily allowance to show (the composer's limit note).
+    usage = (
+        await store.daily_turn_usage(ctx.user_id, daily_limit)
+        if access["available"]
+        else {"turns": 0, "retry_after": None}
+    )
     return {
         **access,
         "home_mode": mode,
-        "offer_choice": await offer_choice(db, ctx.user_id, access, mode),
+        "offer_choice": choice,
         "model": agent_model() if access["available"] else None,
-        "daily_limit": daily_turn_limit(),
+        "daily_limit": daily_limit,
+        "turns_today": usage["turns"],
+        # Seconds until a turn frees up when the daily cap is reached, else null.
+        "daily_retry_after": usage["retry_after"],
     }
 
 

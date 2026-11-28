@@ -71,6 +71,7 @@ export function AgentComposer({
   onStop,
   running,
   disabled,
+  sendBlocked,
   autoFocus,
   placeholder,
   size = "default",
@@ -81,6 +82,8 @@ export function AgentComposer({
   onStop?: () => void;
   running?: boolean;
   disabled?: boolean;
+  /** Typing stays on, only Send waits (a short rate-limit cooldown); the draft is kept. */
+  sendBlocked?: boolean;
   autoFocus?: boolean;
   placeholder?: string;
   size?: "default" | "large";
@@ -208,7 +211,7 @@ export function AgentComposer({
   const linkSource = link ? validateVideoSourceUrl(link).source ?? null : null;
   const working = pending.some((p) => p.status === "working");
   const ready = pending.filter((p) => p.status === "ready" && p.attachment);
-  const canSend = !disabled && !sending && !running && !working && (text.trim().length > 0 || ready.length > 0);
+  const canSend = !disabled && !sendBlocked && !sending && !running && !working && (text.trim().length > 0 || ready.length > 0);
 
   const send = async () => {
     if (!canSend) return;
