@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-28
 
+- **Fixed:** Making clips from a full Twitch or Kick VOD no longer fails with "No valid video sections were selected" when the best moments come later in the stream. ([#598](https://github.com/FujiwaraChoki/supoclip/pull/598))
 - **Improved:** Clip generation renders roughly 3× faster end-to-end with the same visual quality. Rendering now bounds encoder threads to prevent CPU contention, avoids redundant re-encoding on 720p plans, runs caption detection and layout checks in parallel, and renders multiple clips of a video at the same time. ([#597](https://github.com/FujiwaraChoki/supoclip/pull/597))
 
 ## 2026-11-27
