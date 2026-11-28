@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-28
 
+- **Fixed:** A video no longer fails partway through making clips when its database connection is closed while it prepares a clip's email preview. Checking whether to send a completion email now uses its own short database connection instead of holding the video's connection idle for minutes. ([#601](https://github.com/FujiwaraChoki/supoclip/pull/601))
 - **Improved:** Clip generation renders roughly 3× faster end-to-end with the same visual quality. Rendering now bounds encoder threads to prevent CPU contention, avoids redundant re-encoding on 720p plans, runs caption detection and layout checks in parallel, and renders multiple clips of a video at the same time. ([#597](https://github.com/FujiwaraChoki/supoclip/pull/597))
 
 ## 2026-11-27

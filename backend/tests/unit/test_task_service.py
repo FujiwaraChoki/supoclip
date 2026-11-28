@@ -1084,3 +1084,45 @@ def test_download_errors_keep_their_wording():
 
     assert user_facing_error(StreamSourceError("This VOD is private")) == "This VOD is private"
     assert user_facing_error(YouTubeGeoRestrictedError()) == str(YouTubeGeoRestrictedError())
+
+
+@pytest.mark.asyncio
+async def test_completion_email_check_leaves_no_transaction_on_task_session(monkeypatch):
+    """The settings read runs before minutes of preview work, so it must not
+    leave a transaction open on the task's session (the idle-in-transaction
+    timeout would close the connection before the next clip is saved)."""
+    service = build_task_service()
+    events = []
+
+    class ShortSession:
+        async def __aenter__(self):
+            events.append("open")
+            return self
+
+        async def __aexit__(self, *_exc):
+            events.append("close")
+
+    reader = ShortSession()
+    monkeypatch.setattr("src.database.AsyncSessionLocal", lambda: reader)
+
+    async def read_context(db, task_id):
+        events.append(("read", db))
+        return {
+            "notify_on_completion": True,
+            "completion_notification_sent_at": None,
+            "user_email": "user@example.com",
+        }
+
+    service.task_repo.get_task_notification_context = read_context
+
+    class ConfiguredEmailService:
+        def __init__(self, config):
+            pass
+
+        is_configured = True
+
+    monkeypatch.setattr(task_service_module, "TaskCompletionEmailService", ConfiguredEmailService)
+
+    assert await service._completion_email_wanted("task-1") is True
+    assert events == ["open", ("read", reader), "close"]
+    service.db.execute.assert_not_called()
