@@ -151,5 +151,15 @@
       "body": "Jeder Zoom und jeder Sound ist hier ein Block, und die Musikspur zeigt die Musik unter der Stimme. Zieh einen Block, um ihn zu verschieben, doppelklicke, um ihn zu ändern, oder wähl ihn aus und drück Entf. Doppelklicke auf eine leere Stelle, um einen Sound hinzuzufügen."
     }
   },
-  "skip": "Überspringen"
+  "skip": "Überspringen",
+  "live-clipping": {
+    "intro": {
+      "title": "Schneide deinen Stream, während er läuft",
+      "body": "Füge während des Streams den Link deines Twitch-, Kick- oder YouTube-Kanals ein. SupoClip schneidet den neuesten Teil, die letzten 15 Minuten bis 2 Stunden, ohne aufs VOD zu warten."
+    },
+    "follow": {
+      "title": "Oder lass es weiterschneiden",
+      "body": "Schalte „Weiter schneiden, solange er läuft“ ein, dann kommen alle 30 Minuten neue Clips, bis der Stream endet. Jede Runde verbraucht nur ihre neuen Minuten, und du kannst es im Projekt jederzeit stoppen."
+    }
+  }
 }

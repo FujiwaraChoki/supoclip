@@ -306,5 +306,38 @@
     "approxTiming": "Este vídeo não tinha tempo por palavra, então legendas e efeitos seguem um tempo aproximado.",
     "simplified": "Alguns efeitos foram simplificados neste clipe."
   },
-  "sourceRange": "Parte {start}–{end}"
+  "sourceRange": "Parte {start}–{end}",
+  "liveFrom": "Ao vivo de {channel}",
+  "liveSource": "Cortado ao vivo",
+  "liveSession": {
+    "following": "Cortando ao vivo",
+    "status": {
+      "active": "Cortando ao vivo",
+      "ended": "A live terminou",
+      "stopped": "Corte ao vivo parado",
+      "failed": "Corte ao vivo parado"
+    },
+    "title": "Corte automático de {channel}",
+    "thisStream": "esta live",
+    "nextBatchAt": "Próximo lote por volta das {time}. Um novo a cada {minutes} min enquanto a live continuar.",
+    "nextBatchSoon": "O próximo lote chega em instantes.",
+    "stopReason": {
+      "user": "Você parou. As partes já criadas mantêm seus clipes.",
+      "ended": "A live terminou. A última parte cobre o resto.",
+      "minutes": "Os minutos de vídeo deste mês acabaram.",
+      "max_hours": "Uma sessão acompanha uma live por no máximo 12 horas.",
+      "plan": "Cortar lives faz parte do plano Creator.",
+      "errors": "Não conseguimos acessar a live por um tempo.",
+      "error": "Não foi possível iniciar a próxima parte.",
+      "disabled": "O corte ao vivo está pausado no momento."
+    },
+    "stop": "Parar",
+    "stopped": "Corte ao vivo parado",
+    "stopFailed": "Não foi possível parar o corte ao vivo. Tente de novo.",
+    "partsLabel": "Partes desta live",
+    "part": "Parte {number} · {start}–{end}",
+    "clips": "{count, plural, one {# clipe} other {# clipes}}",
+    "partFailed": "falhou",
+    "partWorking": "processando…"
+  }
 }

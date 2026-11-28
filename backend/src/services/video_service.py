@@ -113,7 +113,7 @@ from ..media.upload_ingest import (
     upload_needs_remote_copy,
 )
 from ..media_storage import MediaStorage
-from ..source_range import SourceRange, cut_audio_range, private_link, shift_segment
+from ..source_range import SourceRange, cut_audio_range, private_link, segment_end_seconds, shift_segment
 from ..media.mp4_fragments import fragmented_mp4_duration
 from ..media.ffmpeg import (
     cap_video_short_side,
@@ -2175,6 +2175,7 @@ class VideoService:
         """
         video_path: Optional[Path] = None
         audio_first = False
+        live_now = False
         checkpoint = dict(checkpoint or {})
         range_dir: Optional[Path] = None
         if source_range is not None:
@@ -2243,13 +2244,29 @@ class VideoService:
                         )
 
                 video_id = get_youtube_video_id(url)
+                # A part of a stream that is still live: the video has no length
+                # yet and nothing cached can cover it. Its audio comes from the
+                # live DVR; a full download of a live video is never attempted.
+                live_now = bool(
+                    source_range is not None and source_range.live and video_id and not source_duration
+                )
                 cached_full = (
                     await run_in_thread(cached_full_media, video_id, download_quality)
-                    if video_id else None
+                    if video_id and not live_now else None
                 )
                 # Audio first only when a proxy is configured and we do not
                 # already have the full source cached. Uploads never reach here.
-                if source_range is not None and proxy_configured(runtime_config) and video_id and not cached_full:
+                if live_now:
+                    try:
+                        video_path = await run_download_in_thread(
+                            download_range_audio, url, video_id, source_range,
+                            range_dir / "analysis.m4a", task_id=task_id, budget=job_budget,
+                            progress_callback=progress_callback,
+                        )
+                    except DownloadBudgetExceeded as exc:
+                        raise Exception(str(exc)) from exc
+                    audio_first = True
+                elif source_range is not None and proxy_configured(runtime_config) and video_id and not cached_full:
                     # Only the picked part's audio crosses the proxy. When it
                     # can't be fetched, the full-file chain below is the fallback.
                     try:
@@ -2508,6 +2525,16 @@ class VideoService:
                 # Analysis ran on the part's own timeline. Everything from here
                 # on (sections, render, stored clips) uses the source's.
                 segments_json = [shift_segment(segment, source_range.start) for segment in segments_json]
+                if source_range.fresh_after is not None:
+                    # Continuous live clipping: this part overlaps the previous one
+                    # so a moment at the boundary isn't cut. A moment that ended
+                    # inside the overlap was the previous part's to find.
+                    segments_json = [
+                        segment for segment in segments_json
+                        if segment_end_seconds(segment) > source_range.fresh_after
+                    ]
+                    if not segments_json:
+                        raise Exception("No new moments in this part of the stream")
             section_duration = (
                 source_range.source_duration if source_range is not None else file_duration
             )
@@ -2526,6 +2553,7 @@ class VideoService:
                             max_duration=None if source_range is not None else duration_limit,
                             operation=PROCESSING_OPERATION,
                             should_cancel=should_cancel,
+                            **({"live": True} if source_range is not None and source_range.live else {}),
                         )
                         # Shift word timings onto the stitched sections' timeline.
                         await run_in_thread(
@@ -2538,11 +2566,15 @@ class VideoService:
                             task_id=task_id, budget=job_budget, duration=section_duration,
                             audio_path=audio_path, quality=download_quality,
                             progress_callback=progress_callback, progress=65,
+                            **({"live": True} if live_now else {}),
                         )
                 except DownloadBudgetExceeded as exc:
                     raise Exception(str(exc)) from exc
                 except Exception as exc:
                     if source_type in {"twitch", "kick"} and isinstance(exc, StreamSourceError):
+                        raise
+                    if source_type == "youtube" and live_now:
+                        # A full download of a live video would never end.
                         raise
                     section_error = exc
 

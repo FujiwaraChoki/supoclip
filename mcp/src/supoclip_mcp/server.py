@@ -488,6 +488,8 @@ async def supoclip_create_clip_task(
     edit_style: Optional[dict] = None,
     start_seconds: Optional[float] = None,
     end_seconds: Optional[float] = None,
+    live_minutes: int = 0,
+    keep_clipping: bool = False,
 ) -> str:
     """Create a SupoClip task that downloads a video and generates viral short clips.
 
@@ -529,6 +531,15 @@ async def supoclip_create_clip_task(
     minutes are charged. Clip timestamps stay on the full video's timeline.
     An invalid part fails with 422 INVALID_SOURCE_RANGE.
 
+    Live streams (Creator plan): a link to a stream that is live right now (a
+    Twitch or Kick channel, a YouTube live or ``youtube.com/@channel/live``) fails
+    with 422 LIVE_STREAM_DETECTED (``detail.live.elapsed_seconds``,
+    ``detail.can_clip_live``) unless you say what to clip: ``live_minutes`` clips
+    its newest N minutes, ``keep_clipping`` keeps clipping until the stream ends
+    (a new task every 30 minutes, ``live_session_id`` in the result). Without the
+    Creator plan this fails with 402 LIVE_REQUIRES_CREATOR. Only the minutes of
+    stream clipped are charged.
+
     Workflows other than plain highlights may not be enabled for every account
     (403 WORKFLOW_NOT_AVAILABLE); ``supoclip_list_workflows`` tells you first.
     A failed workflow task ends with ``status: error`` and an ``error_code``
@@ -563,13 +574,16 @@ async def supoclip_create_clip_task(
             (default 0 when only end_seconds is given).
         end_seconds: Optional end of the part to clip, in seconds into the video
             (default: the video's end when only start_seconds is given).
+        live_minutes: Live streams only: clip the newest N minutes (1-360; 0 = not live,
+            or 30 with keep_clipping).
+        keep_clipping: Live streams only: keep clipping every 30 minutes until the stream ends.
 
     Returns:
         str: JSON ``{"task_id": str, "job_id": str, "message": str}`` on success.
     """
     cleaned_url = (url or "").strip()
     if len(cleaned_url) < 4:
-        raise SupoClipError("url is required. Pass a YouTube URL or direct video URL.")
+        raise SupoClipError("url is required. Pass a YouTube, Twitch or Kick URL, or a direct video URL.")
 
     if clip_length not in {"auto", "short", "medium", "long"}:
         raise SupoClipError("clip_length must be auto, short, medium, or long")
@@ -592,6 +606,12 @@ async def supoclip_create_clip_task(
         source[name] = value
     if start_seconds is not None and end_seconds is not None and end_seconds <= start_seconds:
         raise SupoClipError("end_seconds must be after start_seconds")
+    if live_minutes or keep_clipping:
+        if start_seconds is not None or end_seconds is not None:
+            raise SupoClipError("Use live_minutes/keep_clipping for a live stream, or start/end seconds, not both")
+        if isinstance(live_minutes, bool) or not isinstance(live_minutes, int) or not 0 <= live_minutes <= 360:
+            raise SupoClipError("live_minutes must be 1-360")
+        source["live"] = {"window_seconds": (live_minutes or 30) * 60, "follow": bool(keep_clipping)}
 
     body: dict = {
         "source": source,

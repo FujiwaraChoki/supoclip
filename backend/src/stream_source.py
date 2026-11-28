@@ -153,6 +153,9 @@ class _Operation:
     local_media: Optional[Path] = None
     touched: float = field(default_factory=time.monotonic)
     budget: Optional[TransferBudget] = None
+    # The VOD of a stream that is still live (live_source.py). Its playlist keeps
+    # growing, so actor results never match it; only yt-dlp providers run.
+    live: bool = False
 
 
 _operations: dict[tuple[str, str], _Operation] = {}
@@ -1279,7 +1282,7 @@ def _download_unbounded(url: str, *, audio=False, ranges=None, expected_duration
     op_dir = _work_root() / task_key / op_key
     call_dir = op_dir / uuid.uuid4().hex[:12]
     call_dir.mkdir(parents=True, exist_ok=True)
-    providers = _provider_order(source)
+    providers = _live_provider_order(source) if state.live else _provider_order(source)
     if state.preferred in providers:
         providers = providers[providers.index(state.preferred):]
     try:
@@ -1374,11 +1377,26 @@ def _try_providers(url, source, kind, providers, state: _Operation, op_dir, call
     raise StreamSourceError(public)
 
 
-def _download(url: str, *, audio=False, ranges=None, expected_duration=None, max_duration=None, task_id=None, operation=None) -> Path:
+def _live_provider_order(source: str) -> list[str]:
+    """yt-dlp providers only, the server's own IP first when ``LIVE_PREFER_DIRECT``.
+
+    An in-progress VOD is served by the platform CDN like any VOD; the proxy
+    stays as the fallback, so its bytes are only spent when direct fails.
+    """
+    providers = [p for p in _provider_order(source) if p in YTDLP_PROVIDERS]
+    if getattr(get_config(), "live_prefer_direct", True):
+        direct = [p for p in providers if p != "proxy"] or ["direct"]
+        providers = direct + [p for p in providers if p == "proxy"]
+    return providers
+
+
+def _download(url: str, *, audio=False, ranges=None, expected_duration=None, max_duration=None, task_id=None, operation=None, live: bool = False) -> Path:
     # Persist the allowance across audio, sections, full fallback and repeated calls.
     task_key = task_id or f"unscoped-{uuid.uuid4().hex}"
     op_key = operation or f"edit-{uuid.uuid4().hex[:12]}"
     state = _operation(_safe_component(task_key), _safe_component(op_key))
+    if live:
+        state.live = True
     if state.budget is None:
         state.budget = TransferBudget(get_config().youtube_download_max_bytes)
     source, kind, _source_id = detect_stream_source(url)
@@ -1411,16 +1429,18 @@ def download_stream_range_audio(url, source_range, task_id=None, *, operation=No
     """Audio of a picked part of a VOD (only its HLS fragments where possible).
 
     The plan cap was checked against the part's length at admission, so the
-    whole VOD's length is not held against it here.
+    whole VOD's length is not held against it here. A part of a live stream
+    marks the operation live, so its later section downloads skip the actors too.
     """
     ranges = [(float(source_range.start), float(source_range.end))]
     return _download(
         url, audio=True, ranges=ranges, expected_duration=source_range.source_duration,
         max_duration=None, task_id=task_id, operation=operation,
+        live=bool(getattr(source_range, "live", False)),
     )
 
 
-def download_stream_sections(url, segments, duration=None, task_id=None, *, max_duration=None, operation=None):
+def download_stream_sections(url, segments, duration=None, task_id=None, *, max_duration=None, operation=None, live: bool = False):
     ranges = merge_ranges(
         ranges_from_segments(segments),
         padding=get_config().youtube_section_padding_seconds,
@@ -1428,7 +1448,7 @@ def download_stream_sections(url, segments, duration=None, task_id=None, *, max_
     )
     if not ranges:
         raise StreamSourceError("No valid video sections were selected")
-    return _download(url, ranges=ranges, expected_duration=duration, max_duration=max_duration, task_id=task_id, operation=operation)
+    return _download(url, ranges=ranges, expected_duration=duration, max_duration=max_duration, task_id=task_id, operation=operation, live=live)
 
 
 def clear_stream_task_cache(task_id: Optional[str], operation: Optional[str] = None) -> None:

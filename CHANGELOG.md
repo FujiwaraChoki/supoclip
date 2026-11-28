@@ -6,6 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-28
 
+- **New:** Creator can clip YouTube, Twitch and Kick streams while they're still live: paste the channel or live link, clip the newest 15 minutes to 2 hours, or keep clipping until the stream ends with a new batch of clips every 30 minutes. Each batch uses only its new minutes and can be stopped from the project. Rolling out gradually.
 - **Improved:** The Black Friday sale covers both billing periods: 40% off the first year on yearly Pro and Creator, and 40% off the first 3 months on monthly. Pricing opens on yearly while the sale runs. ([#602](https://github.com/FujiwaraChoki/supoclip/pull/602), [#603](https://github.com/FujiwaraChoki/supoclip/pull/603))
 - **Improved:** Clip generation renders roughly 3× faster end-to-end with the same visual quality. Rendering now bounds encoder threads to prevent CPU contention, avoids redundant re-encoding on 720p plans, runs caption detection and layout checks in parallel, and renders multiple clips of a video at the same time. ([#597](https://github.com/FujiwaraChoki/supoclip/pull/597))
 

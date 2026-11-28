@@ -71,6 +71,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 import { ClipTile, ClipFocus, ProcessingPanel, ProcessingSlots, EmptyState, clipProgressFromMessage, sourceTimestamp } from "@/components/app/clip-wall";
+import { LiveSessionPanel, type LiveSessionInfo, type LiveTaskInfo } from "@/components/app/live-session-panel";
 import { orderedParts, seriesPartTotal, SeriesView, unfinishedSeries } from "@/components/app/series-view";
 import { HeroClipView } from "@/components/app/hero-clip-view";
 import { LockedMomentTile, PreviewBanner, usePreviewUnlock } from "@/components/app/preview-locked";
@@ -221,6 +222,10 @@ interface TaskDetails extends WorkflowTaskFields {
   error_code?: string | null;
   /** Dynamic edits as stored (`tasks.edit_style`); null or absent when off. */
   edit_style?: unknown;
+  /** Clipped from a stream that was live at the time (live_source.py). */
+  live?: LiveTaskInfo | null;
+  /** The continuous live session this task is a part of, with its parts so far. */
+  live_session?: LiveSessionInfo | null;
 }
 
 // Params each note needs; a note missing one is not shown rather than shown half-filled.
@@ -1040,6 +1045,12 @@ export default function TaskPage() {
                   {new Date(task.created_at).toLocaleString(intlLocale(locale), { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}
                 </TooltipContent>
               </Tooltip>
+              {task.live && (
+                <span className="flex items-center gap-1.5" data-testid="live-source">
+                  <span aria-hidden className="inline-flex size-1.5 rounded-full bg-red-500" />
+                  {task.live.channel ? t("liveFrom", { channel: task.live.channel }) : t("liveSource")}
+                </span>
+              )}
               {task.source_start_seconds != null && task.source_end_seconds != null && (
                 <span className="tabular-nums" data-testid="source-range">
                   {t("sourceRange", { start: formatClock(task.source_start_seconds), end: formatClock(task.source_end_seconds) })}
@@ -1157,6 +1168,10 @@ export default function TaskPage() {
               {clipJob.progress > 0 && <span className="tabular-nums text-muted-foreground">{Math.round(clipJob.progress * 100)}%</span>}
             </div>
           )
+        )}
+
+        {task?.live_session && (
+          <LiveSessionPanel taskId={task.id} session={task.live_session} readOnly={readOnly} />
         )}
 
         {isActive && task ? (

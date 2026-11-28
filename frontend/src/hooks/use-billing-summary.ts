@@ -26,6 +26,8 @@ export interface BillingSummary {
   legacy_hd?: boolean;
   billing_interval?: "month" | "year";
   can_schedule_posts?: boolean;
+  /** Creator and Team (and self-hosted): clip streams while they are live. */
+  can_clip_live?: boolean;
   can_create_task: boolean;
   upgrade_required: boolean;
   reason: string | null;

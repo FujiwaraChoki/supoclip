@@ -95,6 +95,26 @@ class Config:
         )
         self.twitch_download_providers = os.getenv("TWITCH_DOWNLOAD_PROVIDERS", "proxy,direct,apify_twitch").strip()
         self.kick_download_providers = os.getenv("KICK_DOWNLOAD_PROVIDERS", "proxy,direct_retry,apify_kick_hls,apify_kick_mp4").strip()
+        # Live clipping (live_source.py, docs/live-clipping.md). A live part of a
+        # Twitch/Kick stream reads its in-progress VOD; YouTube reads the live DVR.
+        self.live_clipping_platforms = {
+            item.strip().lower()
+            for item in os.getenv("LIVE_CLIPPING_PLATFORMS", "youtube,twitch,kick").split(",")
+            if item.strip()
+        }
+        # Media of an in-progress Twitch/Kick VOD tries the server's own IP before the
+        # residential proxy: their CDNs serve datacenter IPs, and proxy bytes cost money.
+        self.live_prefer_direct = self._get_bool_env("LIVE_PREFER_DIRECT", True)
+        # Continuous clipping: one part of the stream every LIVE_FOLLOW_INTERVAL_SECONDS,
+        # overlapping the previous part by LIVE_FOLLOW_OVERLAP_SECONDS. A session stops
+        # after LIVE_FOLLOW_MAX_HOURS of stream, or when the account runs out of minutes.
+        self.live_follow_interval_seconds = max(
+            600, self._get_int_env("LIVE_FOLLOW_INTERVAL_SECONDS", 1800)
+        )
+        self.live_follow_overlap_seconds = max(
+            0, min(300, self._get_int_env("LIVE_FOLLOW_OVERLAP_SECONDS", 90))
+        )
+        self.live_follow_max_hours = max(1, self._get_int_env("LIVE_FOLLOW_MAX_HOURS", 12))
         self.apify_twitch_actor = os.getenv("APIFY_TWITCH_ACTOR", "abotapi/twitch-scraper").strip()
         self.apify_kick_hls_actor = os.getenv("APIFY_KICK_HLS_ACTOR", "hipersoft/kick-downloader").strip()
         self.apify_kick_mp4_actor = os.getenv("APIFY_KICK_MP4_ACTOR", "parsebird/kick-video-downloader").strip()

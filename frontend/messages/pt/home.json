@@ -534,5 +534,31 @@
   "creatorTag": "Creator",
   "agentLapsed": "Suas conversas com o Agent estão salvas.",
   "agentTrialEnded": "Você já usou suas mensagens grátis do Agent.",
-  "agentBackWithCreator": "Continue com o Creator"
+  "agentBackWithCreator": "Continue com o Creator",
+  "livePanel": {
+    "liveNow": "Ao vivo",
+    "title": "{channel} está ao vivo",
+    "body": "Ao vivo há {elapsed}. Corte a parte mais recente agora, sem esperar o VOD.",
+    "bodyNoElapsed": "Corte a parte mais recente agora, sem esperar o VOD.",
+    "windowLabel": "Quanto cortar",
+    "lastMinutes": "Últimos {minutes} min",
+    "wholeStream": "Tudo até agora",
+    "tooNew": "Esta live acabou de começar. Tente de novo em um minuto.",
+    "followTitle": "Continuar cortando durante a live",
+    "followBody": "Um novo lote de clipes a cada {minutes} minutos até a live acabar.",
+    "usage": "Usa cerca de {minutes} min de vídeo agora.",
+    "usageFollow": "Cada novo lote usa só os minutos novos.",
+    "creatorTag": "Creator",
+    "locked": "Cortar lives faz parte do plano Creator.",
+    "seeCreator": "Ver Creator",
+    "cancel": "Cancelar",
+    "submit": "Cortar agora",
+    "submitFollow": "Começar a cortar ao vivo",
+    "platforms": {
+      "youtube": "Esta live do YouTube",
+      "twitch": "Esta live da Twitch",
+      "kick": "Esta live da Kick"
+    }
+  },
+  "liveHint": "Está ao vivo agora? Cole o link do seu canal para cortar a live enquanto acontece."
 }

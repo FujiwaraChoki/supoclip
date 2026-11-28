@@ -261,6 +261,13 @@ async def dispatch_scheduled_social_posts(ctx: Dict[str, Any]) -> Dict[str, Any]
 UNLOCKS_PER_RUN = 50
 
 
+async def advance_live_sessions(ctx: Dict[str, Any]) -> Dict[str, Any]:
+    """Cron: add the next part to every continuous live session that is due (live_sessions.py)."""
+    from ..live_sessions import advance_live_sessions as advance
+
+    return await advance()
+
+
 async def unlock_paid_previews(ctx: Dict[str, Any]) -> Dict[str, Any]:
     """Cron: unlock free previews whose owner asked to before checkout, once the plan is active.
 

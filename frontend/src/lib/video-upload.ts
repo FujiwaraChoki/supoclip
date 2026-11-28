@@ -63,24 +63,34 @@ export const FONT_SEARCH_THRESHOLD = 8;
 export type SupportedVideoSource = "youtube" | "twitch" | "kick";
 const TWITCH_RESERVED_PATHS = new Set(["/videos", "/directory", "/search", "/settings"]);
 const KICK_RESERVED_PATHS = new Set(["/video", "/videos", "/categories", "/browse", "/search"]);
-export function validateVideoSourceUrl(value: string): { source?: SupportedVideoSource; error?: string } {
+const YOUTUBE_CHANNEL_LIVE = /^\/(?:@[^/]+|channel\/[A-Za-z0-9_-]+|c\/[^/]+|user\/[^/]+)\/live$/;
+/**
+ * `live` marks a link that can only be a live stream (a Twitch/Kick channel, a YouTube
+ * channel's /live page). The server decides whether it is live and whether this account
+ * may clip it (Creator plan, `live_clipping` flag); with the flag off it refuses the link
+ * with the same message this check used to show.
+ */
+export function validateVideoSourceUrl(value: string): { source?: SupportedVideoSource; error?: string; live?: boolean } {
   let parsed: URL; try { parsed = new URL(value.trim()); } catch { return { error: "Enter a valid YouTube, Twitch VOD/clip, or Kick VOD/clip URL." }; }
   if (!["http:", "https:"].includes(parsed.protocol)) return { error: "Enter a valid video URL." };
   const host = parsed.hostname.toLowerCase().replace(/^www\./, ""), path = parsed.pathname.replace(/\/$/, "");
-  if (isYouTubeHost(host)) return youtubeVideoId(value) ? { source: "youtube" } : { error: "Enter a valid YouTube video URL." };
+  if (isYouTubeHost(host)) {
+    if (youtubeVideoId(value)) return { source: "youtube" };
+    return YOUTUBE_CHANNEL_LIVE.test(path) ? { source: "youtube", live: true } : { error: "Enter a valid YouTube video URL." };
+  }
   if (host === "clips.twitch.tv" && /^\/[A-Za-z0-9_-]+$/.test(path)) return { source: "twitch" };
   if (["twitch.tv", "m.twitch.tv", "go.twitch.tv"].includes(host)) {
     if (/^\/videos\/\d+$/.test(path) || /^\/[A-Za-z0-9_]+\/clip\/[A-Za-z0-9_-]+$/.test(path)) return { source: "twitch" };
     // Mirrors the backend: only a bare channel page is a live stream; listing
     // and directory pages get the unsupported-URL message.
-    if (/^\/[A-Za-z0-9_]+$/.test(path) && !TWITCH_RESERVED_PATHS.has(path.toLowerCase())) return { error: "Live streams aren't supported. Use a Twitch VOD or clip URL instead." };
+    if (/^\/[A-Za-z0-9_]+$/.test(path) && !TWITCH_RESERVED_PATHS.has(path.toLowerCase())) return { source: "twitch", live: true };
     return { error: "Enter a valid Twitch VOD or clip URL." };
   }
   if (host === "kick.com") {
     const vod = /^(?:\/[A-Za-z0-9_-]+\/videos|\/video)\/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(path);
     const clip = /^\/[A-Za-z0-9_-]+\/clips\/clip_[A-Za-z0-9_-]+$/.test(path) || (/^\/[A-Za-z0-9_-]+$/.test(path) && /^clip_[A-Za-z0-9_-]+$/.test(parsed.searchParams.get("clip") || ""));
     if (vod || clip) return { source: "kick" };
-    if (/^\/[A-Za-z0-9_-]+$/.test(path) && !KICK_RESERVED_PATHS.has(path.toLowerCase())) return { error: "Live streams aren't supported. Use a Kick VOD or clip URL instead." };
+    if (/^\/[A-Za-z0-9_-]+$/.test(path) && !KICK_RESERVED_PATHS.has(path.toLowerCase())) return { source: "kick", live: true };
     return { error: "Enter a valid Kick VOD or clip URL." };
   }
   return { error: "Enter a YouTube, Twitch VOD/clip, or Kick VOD/clip URL." };

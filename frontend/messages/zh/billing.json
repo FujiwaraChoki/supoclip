@@ -17,7 +17,8 @@
     "minutes": "每月 {length} 视频",
     "hd": "720p 片段",
     "fullHd": "全高清 1080p 片段",
-    "scheduling": "自动发布和定时发布片段到 YouTube 和 TikTok"
+    "scheduling": "自动发布和定时发布片段到 YouTube 和 TikTok",
+    "live": "边直播边剪辑"
   },
   "runtime": {
     "minutes": "{count} 分钟",
@@ -105,6 +106,17 @@
       "eyebrow": "你的免费片段",
       "title": "解锁其余 {count} 个片段",
       "body": "它们已经找到并在等你。选择一个方案，就会直接在这个项目里生成。"
+    },
+    "live": {
+      "eyebrow": "直播剪辑 · Creator",
+      "title": "边直播边剪辑",
+      "body": "Creator 能在 YouTube、Twitch 和 Kick 直播进行时剪辑：现在就剪最新一段，或在直播结束前每半小时生成一批新片段。",
+      "badge": "直播剪辑",
+      "perks": {
+        "0": "剪辑仍在进行的直播中最新的一段",
+        "1": "直播期间持续剪辑：每 30 分钟一批新片段",
+        "2": "只使用你剪辑的直播分钟数"
+      }
     }
   },
   "illustration": {

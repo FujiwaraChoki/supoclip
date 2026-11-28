@@ -512,6 +512,15 @@ VALUES (
     false,
     true
 );
+-- Clipping live streams (Creator plan): off on web and iOS until the YouTube canary passes. Admins bypass.
+INSERT INTO feature_flags (key, description, web_enabled, ios_enabled, admins_bypass)
+VALUES (
+    'live_clipping',
+    'Clip streams that are still live (YouTube, Twitch, Kick) on the Creator plan: the last N minutes, or continuously while live.',
+    false,
+    false,
+    true
+);
 -- Onboarding guided by Agent with a free preview clip: on for web, off for iOS.
 INSERT INTO feature_flags (key, description, web_enabled, ios_enabled, admins_bypass)
 VALUES (

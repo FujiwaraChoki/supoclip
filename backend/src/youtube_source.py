@@ -1085,6 +1085,8 @@ def download_range_audio(
     from .source_range import cut_audio_range
 
     runtime = get_config()
+    if getattr(source_range, "live", False):
+        return _download_live_range_audio(url, video_id, source_range, dest, task_id=task_id, budget=budget)
     directory = cache_dir_for(video_id, runtime)
     with _cache_lock(directory):
         _restore_remote_cache(video_id, directory)
@@ -1119,6 +1121,44 @@ def download_range_audio(
         )
     full_audio = download_audio_for_job(url, video_id, task_id=task_id, budget=budget)
     return cut_audio_range(full_audio, dest, source_range)
+
+
+LIVE_PART_UNAVAILABLE = (
+    "We couldn't read that part of the live stream. The stream may not let viewers rewind that far. "
+    "Try a shorter part, or clip the video once the stream ends."
+)
+
+
+def _download_live_range_audio(
+    url: str, video_id: str, source_range, dest: Path, *,
+    task_id: Optional[str], budget: Optional[ByteBudget],
+) -> Path:
+    """Audio of a part of a live stream, from its DVR while it is still live.
+
+    Nothing cached can cover a stream that is still growing, and a full-length
+    download of a live video would never end, so neither is tried. A stream that
+    has ended by now reads the same part from the finished video.
+    """
+    from .source_range import cut_audio_range
+
+    stem = dest.parent / "live-audio-section"
+    try:
+        section, media_start, media_end = download_audio_section(
+            url, video_id, float(source_range.start), float(source_range.end), stem,
+            task_id=task_id, budget=budget, live=True,
+        )
+    except DownloadBudgetExceeded:
+        raise
+    except Exception as exc:
+        logger.warning("Live audio part unavailable for %s: %s", video_id, public_download_error(exc))
+        raise YouTubeDownloadError(LIVE_PART_UNAVAILABLE) from exc
+    try:
+        if (media_start > source_range.start + COVERAGE_TOLERANCE_SECONDS
+                or media_end < source_range.end - 5.0):
+            raise YouTubeDownloadError(LIVE_PART_UNAVAILABLE)
+        return cut_audio_range(section, dest, source_range, offset=media_start)
+    finally:
+        section.unlink(missing_ok=True)
 
 
 def preserve_geo_restriction(
@@ -1301,7 +1341,7 @@ def _work_dir(video_id: str, task_id: Optional[str]) -> Path:
 
 def _cache_section_gap(
     url: str, video_id: str, start: float, end: float, directory: Path,
-    manifest: dict, task_id: Optional[str], budget: ByteBudget,
+    manifest: dict, task_id: Optional[str], budget: ByteBudget, live: bool = False,
 ) -> None:
     """Publish each completed window before asking the proxy for the next."""
     while start < end - COVERAGE_TOLERANCE_SECONDS:
@@ -1309,6 +1349,7 @@ def _cache_section_gap(
         target = directory / _range_filename(start, window_end)
         _, media_start, media_end = download_section_file(
             url, video_id, start, window_end, target, task_id=task_id, budget=budget,
+            **({"live": True} if live else {}),
         )
         if (media_start > start + COVERAGE_TOLERANCE_SECONDS
                 or media_end < window_end - COVERAGE_TOLERANCE_SECONDS):
@@ -1336,13 +1377,16 @@ def materialize_clip_source(
     duration: Optional[float] = None,
     audio_path: Optional[Path] = None,
     quality: Optional[str] = None,
+    live: bool = False,
 ) -> Path:
     """Build a render file that covers the selected segments.
 
     A cached full download at or above ``quality`` is returned unchanged
     (original timestamps). Sections are always fetched at the global cap.
     Otherwise only missing padded ranges are fetched, then assembled into a
-    local timeline with a ``.timeline.json`` sidecar.
+    local timeline with a ``.timeline.json`` sidecar. ``live``: sections of a
+    stream that is still live (read from its DVR, without a proxy if none is set).
+    Their seconds are the stream's own, so they stay valid once it ends.
     """
     runtime = get_config()
     counter = budget or ByteBudget(runtime.youtube_download_max_bytes)
@@ -1368,13 +1412,13 @@ def materialize_clip_source(
         pieces = _pieces(directory, manifest)
         gaps = missing_intervals([(piece.start, piece.end) for piece in pieces], needed)
 
-        if gaps and not proxy_configured(runtime):
+        if gaps and not proxy_configured(runtime) and not live:
             raise PartialDownloadUnavailable("Section download requires YOUTUBE_PROXY_URL")
 
         # Recheck and fill gaps under the same lock so a waiting job reuses
         # completed files instead of writing to another job's native parts.
         for gap_start, gap_end in gaps:
-            _cache_section_gap(url, video_id, gap_start, gap_end, directory, manifest, task_id, counter)
+            _cache_section_gap(url, video_id, gap_start, gap_end, directory, manifest, task_id, counter, live)
 
     with _cache_lock(directory):
         manifest = _load_manifest(directory, video_id)

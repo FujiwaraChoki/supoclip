@@ -306,5 +306,38 @@
     "approxTiming": "This video had no word timing, so captions and effects follow approximate timing.",
     "simplified": "Some effects were simplified for this clip."
   },
-  "sourceRange": "Part {start}–{end}"
+  "sourceRange": "Part {start}–{end}",
+  "liveFrom": "Live from {channel}",
+  "liveSource": "Clipped live",
+  "liveSession": {
+    "following": "Clipping live",
+    "status": {
+      "active": "Clipping live",
+      "ended": "Stream ended",
+      "stopped": "Live clipping stopped",
+      "failed": "Live clipping stopped"
+    },
+    "title": "Auto-clipping {channel}",
+    "thisStream": "this stream",
+    "nextBatchAt": "Next batch around {time}. A new one every {minutes} min while the stream is live.",
+    "nextBatchSoon": "Next batch in a moment.",
+    "stopReason": {
+      "user": "You stopped it. Parts already made keep their clips.",
+      "ended": "The stream ended. The last part covers the rest of it.",
+      "minutes": "This month's video minutes ran out.",
+      "max_hours": "A session follows a stream for 12 hours at most.",
+      "plan": "Live clipping is part of the Creator plan.",
+      "errors": "We couldn't reach the stream for a while.",
+      "error": "The next part couldn't be started.",
+      "disabled": "Live clipping is paused right now."
+    },
+    "stop": "Stop",
+    "stopped": "Live clipping stopped",
+    "stopFailed": "Couldn't stop live clipping. Try again.",
+    "partsLabel": "Parts of this stream",
+    "part": "Part {number} · {start}–{end}",
+    "clips": "{count, plural, one {# clip} other {# clips}}",
+    "partFailed": "failed",
+    "partWorking": "working…"
+  }
 }

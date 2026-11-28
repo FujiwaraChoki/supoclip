@@ -534,5 +534,31 @@
   "creatorTag": "Creator",
   "agentLapsed": "Your Agent chats are saved.",
   "agentTrialEnded": "You've used your free Agent messages.",
-  "agentBackWithCreator": "Keep going with Creator"
+  "agentBackWithCreator": "Keep going with Creator",
+  "livePanel": {
+    "liveNow": "Live now",
+    "title": "{channel} is live",
+    "body": "Live for {elapsed}. Clip the newest part now, no need to wait for the VOD.",
+    "bodyNoElapsed": "Clip the newest part now, no need to wait for the VOD.",
+    "windowLabel": "How much to clip",
+    "lastMinutes": "Last {minutes} min",
+    "wholeStream": "Everything so far",
+    "tooNew": "This stream just started. Try again in a minute.",
+    "followTitle": "Keep clipping while live",
+    "followBody": "A new batch of clips every {minutes} minutes until the stream ends.",
+    "usage": "Uses about {minutes} min of video now.",
+    "usageFollow": "Each new batch uses only its new minutes.",
+    "creatorTag": "Creator",
+    "locked": "Clipping live streams is part of the Creator plan.",
+    "seeCreator": "See Creator",
+    "cancel": "Cancel",
+    "submit": "Clip it now",
+    "submitFollow": "Start live clipping",
+    "platforms": {
+      "youtube": "This YouTube stream",
+      "twitch": "This Twitch stream",
+      "kick": "This Kick stream"
+    }
+  },
+  "liveHint": "Streaming right now? Paste your channel link to clip it while it's live."
 }

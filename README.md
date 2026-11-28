@@ -58,7 +58,7 @@ SupoClip gives you the same core pipeline without the leash:
 
 ## Features
 
-- **YouTube, Twitch, Kick & uploads** — paste a YouTube video, a Twitch VOD or clip, or a Kick VOD or clip, or upload your own file (live streams are not supported). Twitch and Kick download providers and the optional Apify fallbacks are set in [docs/configuration.md](docs/configuration.md#twitch-and-kick-imports)
+- **YouTube, Twitch, Kick & uploads** — paste a YouTube video, a Twitch VOD or clip, or a Kick VOD or clip, or upload your own file. Streams that are still live can be clipped too, behind the `live_clipping` feature flag ([docs/live-clipping.md](docs/live-clipping.md)). Twitch and Kick download providers and the optional Apify fallbacks are set in [docs/configuration.md](docs/configuration.md#twitch-and-kick-imports)
 
 - **AI clip selection** — an LLM (Gemini, GPT, Claude, or a local Ollama model) picks the 3–7 most clip-worthy segments from the transcript
 - **Virality scoring** — every clip gets hook, engagement, value, and shareability scores

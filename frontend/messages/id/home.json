@@ -534,5 +534,31 @@
   "creatorTag": "Creator",
   "agentLapsed": "Obrolan Agent-mu tersimpan.",
   "agentTrialEnded": "Pesan Agent gratismu sudah habis.",
-  "agentBackWithCreator": "Lanjutkan dengan Creator"
+  "agentBackWithCreator": "Lanjutkan dengan Creator",
+  "livePanel": {
+    "liveNow": "Sedang live",
+    "title": "{channel} sedang live",
+    "body": "Sudah live {elapsed}. Klip bagian terbaru sekarang, tanpa menunggu VOD.",
+    "bodyNoElapsed": "Klip bagian terbaru sekarang, tanpa menunggu VOD.",
+    "windowLabel": "Seberapa banyak diklip",
+    "lastMinutes": "{minutes} menit terakhir",
+    "wholeStream": "Semua sejauh ini",
+    "tooNew": "Stream ini baru mulai. Coba lagi sebentar lagi.",
+    "followTitle": "Terus klip selama live",
+    "followBody": "Klip baru setiap {minutes} menit sampai stream selesai.",
+    "usage": "Memakai sekitar {minutes} menit video sekarang.",
+    "usageFollow": "Setiap batch baru hanya memakai menit barunya.",
+    "creatorTag": "Creator",
+    "locked": "Mengklip livestream adalah bagian dari paket Creator.",
+    "seeCreator": "Lihat Creator",
+    "cancel": "Batal",
+    "submit": "Klip sekarang",
+    "submitFollow": "Mulai klip live",
+    "platforms": {
+      "youtube": "Stream YouTube ini",
+      "twitch": "Stream Twitch ini",
+      "kick": "Stream Kick ini"
+    }
+  },
+  "liveHint": "Sedang live? Tempel tautan channel-mu untuk mengklipnya selagi live."
 }

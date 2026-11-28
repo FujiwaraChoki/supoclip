@@ -24,6 +24,8 @@ import { AppShell } from "@/components/app/app-shell";
 import { GenerationCard } from "@/components/app/generation-card";
 import { VideoDownloadStatus } from "@/components/app/video-download-status";
 import { SourceRangePicker } from "@/components/source-range-picker";
+import { LiveStreamPanel } from "@/components/live-stream-panel";
+import { defaultLiveChoice, LIVE_REQUIRES_CREATOR, liveOfferFromError, liveSourceFields, type LiveChoice, type LiveOffer } from "@/lib/live-clipping";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,6 +56,7 @@ import { buildFontOptionsPayload, FONT_TEMPLATE_DEFAULT_VALUE, savedCaptionDefau
 import type { GenerationSummary } from "@/lib/generations";
 import { createOptionKeys, fetchBrollConfigured, fetchFonts } from "@/lib/queries/create-options";
 import { useGenerations } from "@/lib/queries/generations";
+import { useFeatureFlag } from "@/lib/queries/feature-flags";
 import { CLIP_LENGTHS, isClipLength, type ClipLength } from "@/lib/clip-duration";
 import {
   INSTRUCTIONS_MAX_CHARS, isWorkflow, MIN_SOURCE_SECONDS, normalizeTopic, PART_COUNT_OPTIONS, TOPIC_MAX_CHARS, topicIssue,
@@ -303,6 +306,12 @@ export default function HomeApp({ agentLink, agentLocked, preview }: {
     setSourceRange(defaultSourceRange(offer));
     requestAnimationFrame(() => rangePanelRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
   }, []);
+  // The link is a stream that is live right now (Creator plan): clip its newest part, or keep clipping.
+  const [liveOffer, setLiveOffer] = useState<LiveOffer | null>(null);
+  const [liveChoice, setLiveChoice] = useState<LiveChoice | null>(null);
+  const livePanelRef = useRef<HTMLElement | null>(null);
+  // Creator accounts (with live clipping on) learn they can paste a channel that is live.
+  const liveClippingOn = useFeatureFlag("live_clipping", Boolean(session?.user?.id));
   // A refusal that a part of the video can't fix (a livestream, an unknown length): said plainly.
   const [lengthError, setLengthError] = useState<{ kind: "durationUnavailable" } | { kind: "tooLongNoRange"; minutes: number } | null>(null);
   useEffect(() => {
@@ -310,6 +319,8 @@ export default function HomeApp({ agentLink, agentLocked, preview }: {
     setRangeOffer(null);
     setSourceRange(null);
     setLengthError(null);
+    setLiveOffer(null);
+    setLiveChoice(null);
   }, [url, file]);
   const uploadLimitBytes = billingSummary?.max_upload_bytes && billingSummary.max_upload_bytes > 0
     ? billingSummary.max_upload_bytes
@@ -959,6 +970,8 @@ export default function HomeApp({ agentLink, agentLocked, preview }: {
           title: sourceType === "upload" && file?.name ? file.name.slice(0, 500) : null,
           // Only once a part was picked: a whole-video request stays exactly as before.
           ...sourceRangeFields(rangeOffer ? sourceRange : null),
+          // Only after the server said the link is live and the person chose what to clip.
+          ...liveSourceFields(liveOffer?.canClipLive ? liveChoice : null),
         },
         font_options: fontOptions,
         caption_template: fxFields.caption_template,
@@ -1003,6 +1016,22 @@ export default function HomeApp({ agentLink, agentLocked, preview }: {
           setStatusMessage("");
           return;
         }
+        const live = liveOfferFromError(info);
+        if (live) {
+          setLiveOffer(live);
+          setLiveChoice(defaultLiveChoice(live));
+          trackEvent("live_stream_detected", { platform: live.platform, can_clip_live: live.canClipLive, plan: billingSummary?.plan ?? "unknown" });
+          setIsLoading(false);
+          setStatusMessage("");
+          requestAnimationFrame(() => livePanelRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+          return;
+        }
+        if (info.code === LIVE_REQUIRES_CREATOR) {
+          openUpgrade({ kind: "live" });
+          setIsLoading(false);
+          setStatusMessage("");
+          return;
+        }
         if (info.code === "VIDEO_DURATION_UNAVAILABLE") {
           setLengthError({ kind: "durationUnavailable" });
           setIsLoading(false);
@@ -1033,7 +1062,14 @@ export default function HomeApp({ agentLink, agentLocked, preview }: {
       }
 
       const startResult = await startResponse.json();
-      const alreadyProcessing = Boolean(startResult.duplicate) || startResult.code === "DUPLICATE_SOURCE";
+      const alreadyProcessing = Boolean(startResult.duplicate) || startResult.code === "DUPLICATE_SOURCE" || Boolean(startResult.already_following);
+      if (liveOffer && liveChoice && !alreadyProcessing) trackEvent("live_clip_started", {
+        platform: liveOffer.platform,
+        window_minutes: Math.round(liveChoice.windowSeconds / 60),
+        follow: liveChoice.follow,
+        elapsed_minutes: Math.round(liveOffer.elapsedSeconds / 60),
+        plan: billingSummary?.plan ?? "unknown",
+      });
       if (rangeOffer && sourceRange && !alreadyProcessing) trackEvent("source_range_chosen", {
         source_kind: analyticsSourceKind(),
         plan: billingSummary?.plan ?? "unknown",
@@ -1588,6 +1624,12 @@ export default function HomeApp({ agentLink, agentLocked, preview }: {
             </div>
           </form>
 
+          {liveClippingOn && billingSummary?.can_clip_live && !url.trim() && !file && (
+            <p data-tour="live-hint" className="mt-3 flex items-center justify-center gap-1.5 text-center text-xs text-muted-foreground">
+              <span aria-hidden className="inline-flex size-1.5 shrink-0 rounded-full bg-red-500" />
+              {t("liveHint")}
+            </p>
+          )}
           {agentLink && (
             <p className="mt-3 text-center text-xs text-muted-foreground">
               <Link href={agentLink} className="inline-flex items-center gap-1 underline-offset-2 hover:text-foreground hover:underline">
@@ -1632,6 +1674,19 @@ export default function HomeApp({ agentLink, agentLocked, preview }: {
               onCancel={() => { setUrl(""); attachFile(null); }}
               busy={isLoading}
               problem={rangeProblem}
+            />
+          )}
+
+          {liveOffer && liveChoice && (
+            <LiveStreamPanel
+              ref={livePanelRef}
+              offer={liveOffer}
+              choice={liveChoice}
+              onChoiceChange={setLiveChoice}
+              onSubmit={() => void handleSubmit()}
+              onCancel={() => setUrl("")}
+              onUpgrade={() => openUpgrade({ kind: "live" })}
+              busy={isLoading}
             />
           )}
 

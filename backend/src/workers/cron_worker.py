@@ -32,6 +32,7 @@ from .media_cleanup import cleanup_media, copy_pending_uploads, sweep_orphaned_m
 from .redis_settings import arq_redis_settings, on_arq_startup  # noqa: E402
 from .media_replication import check_media_storage, replicate_pending_media  # noqa: E402
 from .tasks import (  # noqa: E402
+    advance_live_sessions,
     dispatch_scheduled_social_posts,
     refresh_social_metrics,
     unlock_paid_previews,
@@ -69,6 +70,8 @@ class CronWorkerSettings:
         scheduled(sweep_orphaned_media, hour={0, 6, 12, 18}, minute=15),
         scheduled(copy_pending_uploads, second=10, run_at_startup=True, timeout=1800),
         scheduled(dispatch_scheduled_social_posts, second=0, timeout=300),
+        # Continuous live clipping: the next part of every stream that is due.
+        scheduled(advance_live_sessions, second=35, timeout=900),
         # Free previews the owner paid to unlock, when the tab that would do it is gone.
         scheduled(unlock_paid_previews, second=25, timeout=300),
         scheduled(refresh_social_metrics, minute=7, second=0, timeout=1800),

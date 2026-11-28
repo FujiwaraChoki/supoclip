@@ -534,5 +534,31 @@
   "creatorTag": "Creator",
   "agentLapsed": "你的 Agent 对话都已保存。",
   "agentTrialEnded": "你的免费 Agent 消息已用完。",
-  "agentBackWithCreator": "升级 Creator 继续使用"
+  "agentBackWithCreator": "升级 Creator 继续使用",
+  "livePanel": {
+    "liveNow": "正在直播",
+    "title": "{channel} 正在直播",
+    "body": "已直播 {elapsed}。现在就剪最新的一段，不用等回放。",
+    "bodyNoElapsed": "现在就剪最新的一段，不用等回放。",
+    "windowLabel": "剪多少",
+    "lastMinutes": "最近 {minutes} 分钟",
+    "wholeStream": "从开播到现在",
+    "tooNew": "这场直播刚开始，请一分钟后再试。",
+    "followTitle": "直播期间持续剪辑",
+    "followBody": "直播结束前，每 {minutes} 分钟生成一批新片段。",
+    "usage": "现在约使用 {minutes} 分钟视频额度。",
+    "usageFollow": "每批新片段只使用新增的分钟数。",
+    "creatorTag": "Creator",
+    "locked": "剪辑直播是 Creator 方案的功能。",
+    "seeCreator": "了解 Creator",
+    "cancel": "取消",
+    "submit": "立即剪辑",
+    "submitFollow": "开始直播剪辑",
+    "platforms": {
+      "youtube": "这场 YouTube 直播",
+      "twitch": "这场 Twitch 直播",
+      "kick": "这场 Kick 直播"
+    }
+  },
+  "liveHint": "正在直播？粘贴你的频道链接，边直播边剪辑。"
 }

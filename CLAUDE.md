@@ -183,6 +183,8 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 | `src/workflows/` | Workflows (series, topic, recap, trailer): contracts, options/gate, units, outline, planners, solvers |
 | `src/services/ai_edit_service.py` | Studio AI editing: Sonnet 5.5 plans typed operations, applied and validated here |
 | `src/workers/ai_worker.py` | Light ARQ worker for AI edits (`supoclip_ai` queue, own container) |
+| `src/live_source.py` | Live streams: live links, the recording a live part is cut from (in-progress VOD / YouTube DVR) |
+| `src/live_sessions.py` | Continuous live clipping: sessions, the `advance_live_sessions` cron step, part tasks |
 | `src/broll.py` | Pexels API B-roll integration |
 | `src/edit_fx/` | Dynamic edits: contracts, beats (`beats_llm.py`, `beats.py`), pure resolver, env (`env.py`), assets |
 | `src/media/fx_chain.py`, `fx_audio.py`, `fx_analysis.py` | FX render chain (ffmpeg → deno → ffmpeg), audio mix, face/matte |
@@ -211,6 +213,10 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 - `POST /tasks/{id}/resume` — Resume cancelled/errored task
 - `DELETE /tasks/{id}` — Delete task
 
+**Live streams (Creator, `live_clipping` flag; `docs/live-clipping.md`):**
+- `POST /tasks/` with a live link → 422 `LIVE_STREAM_DETECTED`; with `source.live` `{window_seconds, follow}` → a part of the recording (`follow` starts a live session)
+- `GET /live-sessions/`, `GET /live-sessions/{id}`, `POST /live-sessions/{id}/stop`
+
 **Clip editing:**
 - `PATCH /tasks/{id}/clips/{clip_id}` — Trim clip
 - `POST /tasks/{id}/clips/{clip_id}/split` — Split at timestamp
@@ -238,7 +244,7 @@ PostgreSQL 15. Schema in `init.sql`. Mixed naming conventions:
 - `GET /social/performance/timeseries?days=30` — daily new views from metrics snapshots (Analytics chart)
 - `GET /social/media/{token}` — public token-gated clip stream for Instagram
 
-Worker crons (`workers/tasks.py`): every minute `dispatch_scheduled_social_posts`, hourly `refresh_social_metrics`.
+Worker crons (`workers/tasks.py`): every minute `dispatch_scheduled_social_posts` and `advance_live_sessions`, hourly `refresh_social_metrics`.
 Feedback webhook retries: every minute `deliver_feedback_webhooks` (`feedback/delivery.py`).
 Post status flow: `scheduled → queued → publishing → published/failed/cancelled`.
 
@@ -361,6 +367,9 @@ STRIPE_CANCELLATION_WEBHOOK_SECRETS= # Cancellation reviews: acct_X:whsec_... pe
 CANCELLATION_REVIEWS_ENABLED=false   # Cron worker investigates cancellations and posts reports (docs/cancellation-reviews.md)
 CANCELLATION_REPORT_WEBHOOK_URL=     # Signed operator-chat webhook (+ CANCELLATION_REPORT_WEBHOOK_SECRET)
 HERMES_FEEDBACK_WEBHOOK_URL=         # Hermes assistant route for every feedback submission (+ HERMES_FEEDBACK_WEBHOOK_SECRET; API + cron worker)
+LIVE_CLIPPING_PLATFORMS=youtube,twitch,kick  # Live clipping platforms (also needs the live_clipping flag)
+LIVE_PREFER_DIRECT=true              # In-progress Twitch/Kick VODs: server IP before the proxy
+LIVE_FOLLOW_INTERVAL_SECONDS=1800    # Continuous live clipping: one part per interval (+ _OVERLAP_SECONDS=90, _MAX_HOURS=12)
 WORKFLOWS_ACCESS=admins              # Series/topic/recap/trailer + instructions: off | admins | all (self-host: all)
 WORKFLOWS_ALLOWED_EMAILS=            # Comma-separated beta emails when access=admins
 WORKFLOWS_PUBLIC=                    # Workflows open to everyone while access=admins, e.g. trailer,topic
@@ -421,6 +430,9 @@ switch a feature per platform without a deploy, in the `/admin` "Feature Flags" 
   connect/options/publish/retry return 503 for non-admins, while admins can connect and publish test Reels.
 - **`dynamic_edits`:** seeded off on web and iOS (admins bypass). Off, requests that turn effects on (active
   `edit_style` or an FX caption template) get 403 `DYNAMIC_EDITS_NOT_AVAILABLE` before any charge; stored FX clips keep working.
+- **`live_clipping`:** seeded off on web and iOS (admins bypass) until the YouTube DVR canary passes. Gates live links
+  on `POST /tasks/` (off: refused as before) and the session cron. The plan gate is `can_clip_live` (Creator/Team,
+  self-host) in the billing summary. Pricing lists it only with `NEXT_PUBLIC_LIVE_CLIPPING=on`.
 - Adding a flag: seed it in a migration (and `init.sql`), add its default to `DEFAULT_FLAGS`, check it with
   `feature_flags.is_enabled(db, key, platform=client_platform(request), user_id=...)`.
 

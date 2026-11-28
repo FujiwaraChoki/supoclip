@@ -151,5 +151,15 @@
       "body": "Every zoom and sound is a block here, and the music lane shows the bed under the voice. Drag a block to move it, double-click to change it, or select it and press Delete. Double-click an empty spot to add a sound."
     }
   },
-  "skip": "Skip"
+  "skip": "Skip",
+  "live-clipping": {
+    "intro": {
+      "title": "Clip your stream while it's live",
+      "body": "Paste your Twitch, Kick or YouTube channel link while you're streaming. SupoClip clips the newest part, the last 15 minutes to 2 hours, without waiting for the VOD."
+    },
+    "follow": {
+      "title": "Or keep it clipping",
+      "body": "Turn on “Keep clipping while live” and a new batch of clips arrives every 30 minutes until the stream ends. Each batch uses only its new minutes, and you can stop it any time from the project."
+    }
+  }
 }

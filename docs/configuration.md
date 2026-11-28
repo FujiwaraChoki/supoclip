@@ -22,6 +22,26 @@ The Apify runs use small memory limits and charge caps. The final Kick provider 
 a complete 720p file and is therefore intentionally last; its size cap is duration-based,
 at least 100 MB, and never exceeds `APIFY_KICK_MAX_VIDEO_SIZE_MB`.
 
+## Live clipping
+
+Creator and Team accounts can clip a stream that is still live (YouTube, Twitch, Kick):
+the newest part now, or continuously until it ends. It is off until the `live_clipping`
+feature flag is on for the platform (admins bypass it). Design, costs and the rollout
+checklist: `docs/live-clipping.md`.
+
+```env
+LIVE_CLIPPING_PLATFORMS=youtube,twitch,kick   # drop one to refuse its live links
+LIVE_PREFER_DIRECT=true                       # in-progress Twitch/Kick VODs try direct before the proxy
+LIVE_FOLLOW_INTERVAL_SECONDS=1800             # continuous: one part per interval (minimum 600)
+LIVE_FOLLOW_OVERLAP_SECONDS=90                # each part re-reads this much of the last one
+LIVE_FOLLOW_MAX_HOURS=12                      # a session stops after this much stream
+```
+
+YouTube live parts read the live DVR through `YOUTUBE_PROXY_URL` (or directly when no
+proxy is set, for a self-hosted machine on a residential connection). The YouTube Data
+API key (`YOUTUBE_DATA_API_KEY` or `GOOGLE_API_KEY`, when it has the YouTube Data API
+enabled) answers "is it still live?" without proxy traffic.
+
 Task creation runs a metadata preflight with one overall 30-second deadline: `yt-dlp`
 through the proxy, then direct, then (only if both fail) the cheap metadata actor
 (`apify_twitch` or `apify_kick_hls`). The full-video Kick actor never runs during
@@ -350,6 +370,7 @@ These determine whether the app behaves like an open self-hosted product or a mo
 | `NEXT_PUBLIC_TEAM_YOUTUBE_MAX_MINUTES` | `180` | Frontend display max YouTube video length (minutes) for Team |
 | `NEXT_PUBLIC_TEAM_AI_EDIT_LIMIT` | `300` | Frontend display pooled monthly AI edits for Team |
 | `NEXT_PUBLIC_SOCIAL_PUBLISHING` | `soon` | How Creator's scheduled posting appears on pricing pages: `soon` ("Coming soon" tag, YouTube and TikTok), `live`, or `off` |
+| `NEXT_PUBLIC_LIVE_CLIPPING` | `off` | `on` lists "Clip streams while they're live" among Creator's features (set it when the `live_clipping` flag is on for everyone) |
 
 Plans are metered in minutes of source video. A video's full length, rounded up
 to the minute, is charged when the task is created (YouTube length comes from

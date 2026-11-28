@@ -17,7 +17,8 @@
     "minutes": "{length} de vídeo al mes",
     "hd": "Clips en 720p",
     "fullHd": "Clips en Full HD 1080p",
-    "scheduling": "Publica y programa clips en YouTube y TikTok automáticamente"
+    "scheduling": "Publica y programa clips en YouTube y TikTok automáticamente",
+    "live": "Recorta directos mientras ocurren"
   },
   "runtime": {
     "minutes": "{count} min",
@@ -105,6 +106,17 @@
       "eyebrow": "Tu clip gratis",
       "title": "{count, plural, one {Desbloquea el otro clip} other {Desbloquea los otros # clips}}",
       "body": "Ya están encontrados y esperando. Elige un plan y se hacen aquí mismo, en este proyecto."
+    },
+    "live": {
+      "eyebrow": "Recorte en directo · Creator",
+      "title": "Recorta directos mientras ocurren",
+      "body": "Creator recorta directos de YouTube, Twitch y Kick mientras suceden: la parte más reciente ahora, o una nueva tanda cada media hora hasta que acabe el directo.",
+      "badge": "Recorte en directo",
+      "perks": {
+        "0": "Recorta la parte más reciente de un directo que sigue en marcha",
+        "1": "Sigue recortando en directo: clips nuevos cada 30 minutos",
+        "2": "Solo se usan los minutos de directo que recortas"
+      }
     }
   },
   "illustration": {
