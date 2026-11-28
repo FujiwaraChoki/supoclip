@@ -1789,31 +1789,42 @@ class VideoService:
             render_report: Dict[str, Any] = {}
             point_labels = point_labels_for(segment.get("workflow_meta"), resolved.group_output_starts)
 
-            success = await run_in_thread(
-                create_optimized_clip,
-                video_path,
-                start_seconds,
-                end_seconds,
-                clip_path,
-                add_subtitles,
-                font_family,
-                font_size,
-                font_color,
-                caption_template,
-                output_format,
-                keep_ranges,
-                burned_hook_title(segment),
-                extend_to_sentence=False,
-                layout_report=render_report,
-                broll_overlays=broll_overlays,
-                **({"output_offsets": output_offsets} if output_offsets is not None else {}),
-                **({"point_labels": point_labels} if point_labels else {}),
-                **({"fx": FxRenderInput(
-                    plan=planned_fx.plan,
-                    words=planned_fx.words,
-                    reaction_files=planned_fx.reaction_files,
-                )} if planned_fx is not None else {}),
-            )
+            try:
+                success = await run_in_thread(
+                    create_optimized_clip,
+                    video_path,
+                    start_seconds,
+                    end_seconds,
+                    clip_path,
+                    add_subtitles,
+                    font_family,
+                    font_size,
+                    font_color,
+                    caption_template,
+                    output_format,
+                    keep_ranges,
+                    burned_hook_title(segment),
+                    extend_to_sentence=False,
+                    layout_report=render_report,
+                    broll_overlays=broll_overlays,
+                    **({"output_offsets": output_offsets} if output_offsets is not None else {}),
+                    **({"point_labels": point_labels} if point_labels else {}),
+                    **({"fx": FxRenderInput(
+                        plan=planned_fx.plan,
+                        words=planned_fx.words,
+                        reaction_files=planned_fx.reaction_files,
+                    )} if planned_fx is not None else {}),
+                    **({"max_short_side": max_short_side} if max_short_side else {}),
+                )
+            except asyncio.CancelledError:
+                # run_in_thread waits for the worker thread to finish before
+                # propagating cancellation, so clean up any file it wrote.
+                try:
+                    clip_path.unlink(missing_ok=True)
+                    clip_path.with_suffix(".source_map.json").unlink(missing_ok=True)
+                except OSError:
+                    logger.warning("Could not remove cancelled clip %s", clip_path)
+                raise
 
             if not success:
                 logger.error(f"Failed to create clip {clip_index + 1}")

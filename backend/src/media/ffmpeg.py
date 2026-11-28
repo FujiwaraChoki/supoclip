@@ -1,5 +1,6 @@
 """Ffmpeg helpers for the video pipeline."""
 
+from collections import OrderedDict
 from contextlib import contextmanager
 from typing import Iterator
 from typing import List
@@ -12,18 +13,89 @@ import json
 import re
 import subprocess
 import tempfile
+import threading
 from .common import (
     AUDIO_BITRATE,
     CLIP_END_AUDIO_FADE_SECONDS,
     CLIP_START_AUDIO_FADE_SECONDS,
     CROSSFADE_MAX_SECONDS,
+    FFMPEG_ENCODE_THREADS,
     FINAL_VIDEO_CRF,
     FINAL_VIDEO_PRESET,
     INTERMEDIATE_CRF,
+    INTERMEDIATE_VIDEO_PRESET,
     FINAL_AUDIO_FILTER,
     OUTPUT_FPS,
     logger,
 )
+
+_PROBE_CACHE_MAX = 512
+_PROBE_CACHE_LOCK = threading.Lock()
+_PROBE_CACHE: "OrderedDict[tuple, object]" = OrderedDict()
+
+
+def _probe_cache_key(kind: str, video_path: Path, extra: object = None) -> Optional[tuple]:
+    """Stat-keyed cache key for immutable media probes; None when the path does not exist on disk."""
+    try:
+        st = Path(video_path).stat()
+    except OSError:
+        return None
+    return (kind, str(video_path), st.st_mtime_ns, st.st_size, extra)
+
+
+def _probe_cache_get(key: Optional[tuple]):
+    if key is None:
+        return _CACHE_MISS
+    with _PROBE_CACHE_LOCK:
+        if key not in _PROBE_CACHE:
+            return _CACHE_MISS
+        _PROBE_CACHE.move_to_end(key)
+        return _PROBE_CACHE[key]
+
+
+def _probe_cache_put(key: Optional[tuple], value: object) -> None:
+    if key is None:
+        return
+    with _PROBE_CACHE_LOCK:
+        _PROBE_CACHE[key] = value
+        _PROBE_CACHE.move_to_end(key)
+        while len(_PROBE_CACHE) > _PROBE_CACHE_MAX:
+            _PROBE_CACHE.popitem(last=False)
+
+
+_CACHE_MISS = object()
+
+
+def encode_thread_args(threads: Optional[int] = None) -> List[str]:
+    """Optional ``-threads`` flag bounding libx264 worker threads per encode."""
+    count = FFMPEG_ENCODE_THREADS if threads is None else max(0, int(threads))
+    return ["-threads", str(count)] if count > 0 else []
+
+
+def build_intermediate_video_encode_args(
+    crf: int = INTERMEDIATE_CRF,
+    preset: str = INTERMEDIATE_VIDEO_PRESET,
+) -> List[str]:
+    """Fast libx264 args for throwaway intermediate cuts (deleted after the final pass)."""
+    return [
+        "-c:v", "libx264",
+        "-preset", preset,
+        "-crf", str(crf),
+        "-pix_fmt", "yuv420p",
+        *encode_thread_args(),
+    ]
+
+
+def short_side_scale_filter(
+    width: int, height: int, short_side: Optional[int]
+) -> Optional[str]:
+    """Scale filter fragment capping the shorter side to ``short_side``, or None if already within cap."""
+    if not short_side or width <= 0 or height <= 0 or min(width, height) <= short_side:
+        return None
+    scale = short_side / min(width, height)
+    target_width = round_to_even(round(width * scale))
+    target_height = round_to_even(round(height * scale))
+    return f"scale={target_width}:{target_height}:flags=bicubic,setsar=1"
 
 
 def round_to_even(value: int) -> int:
@@ -52,6 +124,10 @@ def run_ffmpeg_command(command: List[str], timeout: int = 900) -> subprocess.Com
 
 
 def ffprobe_has_audio(video_path: Path) -> bool:
+    key = _probe_cache_key("has_audio", video_path)
+    cached = _probe_cache_get(key)
+    if cached is not _CACHE_MISS:
+        return bool(cached)
     result = run_ffmpeg_command(
         [
             "ffprobe",
@@ -67,7 +143,10 @@ def ffprobe_has_audio(video_path: Path) -> bool:
         ],
         timeout=60,
     )
-    return result.returncode == 0 and "audio" in result.stdout
+    has_audio = result.returncode == 0 and "audio" in result.stdout
+    if result.returncode == 0:
+        _probe_cache_put(key, has_audio)
+    return has_audio
 
 
 # ISO 639-1 → ISO 639-2 (B and T forms) for the languages container tags most
@@ -105,6 +184,10 @@ def select_audio_stream_index(
     """
     if preferred_language is None:
         preferred_language = get_config().transcription_language
+    key = _probe_cache_key("audio_stream", video_path, preferred_language)
+    cached = _probe_cache_get(key)
+    if cached is not _CACHE_MISS:
+        return cached
     result = run_ffmpeg_command(
         [
             "ffprobe",
@@ -127,6 +210,7 @@ def select_audio_stream_index(
     except ValueError:
         return None
     if not streams:
+        _probe_cache_put(key, None)
         return None
 
     def rank(item: Tuple[int, dict]) -> Tuple[int, int, int, int]:
@@ -141,7 +225,9 @@ def select_audio_stream_index(
         not_primary = int(not (disposition.get("default") or disposition.get("original")))
         return language_miss, secondary, not_primary, position
 
-    return min(enumerate(streams), key=rank)[0]
+    chosen = min(enumerate(streams), key=rank)[0]
+    _probe_cache_put(key, chosen)
+    return chosen
 
 
 def audio_stream_map_args(audio_stream: Optional[int]) -> List[str]:
@@ -236,6 +322,10 @@ def ffprobe_video_size(video_path: Path) -> Tuple[int, int]:
     stored as 1920×1080 with rotation -90 is 1080×1920 inside crop, scale, and
     rawvideo analysis.
     """
+    key = _probe_cache_key("video_size", video_path)
+    cached = _probe_cache_get(key)
+    if cached is not _CACHE_MISS:
+        return cached
     result = run_ffmpeg_command(
         [
             "ffprobe",
@@ -260,12 +350,18 @@ def ffprobe_video_size(video_path: Path) -> Tuple[int, int]:
             f"Unable to read video size for {video_path}: probe output was not JSON"
         ) from exc
     try:
-        return parse_ffprobe_video_size(payload)
+        size = parse_ffprobe_video_size(payload)
     except (TypeError, ValueError) as exc:
         raise RuntimeError(f"Unable to read video size for {video_path}: {exc}") from exc
+    _probe_cache_put(key, size)
+    return size
 
 
 def ffprobe_duration(video_path: Path, timeout: int = 60) -> float:
+    key = _probe_cache_key("duration", video_path)
+    cached = _probe_cache_get(key)
+    if cached is not _CACHE_MISS:
+        return float(cached)
     result = run_ffmpeg_command(
         [
             "ffprobe",
@@ -282,9 +378,11 @@ def ffprobe_duration(video_path: Path, timeout: int = 60) -> float:
     if result.returncode != 0:
         raise RuntimeError(f"Unable to read duration for {video_path}")
     try:
-        return max(0.0, float(result.stdout.strip()))
+        duration = max(0.0, float(result.stdout.strip()))
     except ValueError as exc:
         raise RuntimeError(f"Invalid duration for {video_path}") from exc
+    _probe_cache_put(key, duration)
+    return duration
 
 
 def ffmpeg_escape_filter_value(value: str) -> str:
@@ -331,6 +429,7 @@ def build_final_video_encode_args(
         "-level", level,
         "-r", str(fps),
         "-x264-params", "keyint=120:min-keyint=30:scenecut=40",
+        *encode_thread_args(),
     ]
 
 
@@ -352,7 +451,7 @@ def cap_video_short_side(video_path: Path, short_side: int) -> bool:
         "ffmpeg", "-y", "-v", "error",
         "-i", str(video_path),
         "-map", "0:v:0", "-map", "0:a?",
-        "-vf", f"scale={target_width}:{target_height}:flags=lanczos,setsar=1",
+        "-vf", f"scale={target_width}:{target_height}:flags=bicubic,setsar=1",
         *build_final_video_encode_args(),
         "-c:a", "copy",
         "-movflags", "+faststart",
@@ -587,8 +686,7 @@ def _range_inputs(
                 "ffmpeg", "-y", "-ss", f"{origin:.3f}", "-i", str(video_path),
                 *audio_stream_map_args(audio_stream),
                 "-t", f"{length:.3f}",
-                "-c:v", "libx264", "-preset", "veryfast", "-crf", str(INTERMEDIATE_CRF),
-                "-pix_fmt", "yuv420p",
+                *build_intermediate_video_encode_args(),
             ]
             if audio_stream is not None:
                 command += ["-c:a", "aac", "-b:a", "192k"]
@@ -722,8 +820,7 @@ def render_ranges_crossfade_ffmpeg(
             "-filter_complex", ";".join(parts),
             *map_args,
             *NO_CHAPTERS,
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", str(INTERMEDIATE_CRF),
-            "-pix_fmt", "yuv420p",
+            *build_intermediate_video_encode_args(),
         ]
         if has_audio:
             command += ["-c:a", "aac", "-b:a", "192k"]
@@ -790,14 +887,7 @@ def render_source_ranges_ffmpeg(
             *NO_CHAPTERS,
             "-t",
             f"{end - start:.3f}",
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            str(INTERMEDIATE_CRF),
-            "-pix_fmt",
-            "yuv420p",
+            *build_intermediate_video_encode_args(),
             *(["-af", audio_edge_fades(end - start)] if audio_stream is not None else []),
             "-c:a",
             "aac",
@@ -868,14 +958,7 @@ def render_source_ranges_ffmpeg(
             ";".join(filter_parts),
             *map_args,
             *NO_CHAPTERS,
-            "-c:v",
-            "libx264",
-            "-preset",
-            "veryfast",
-            "-crf",
-            str(INTERMEDIATE_CRF),
-            "-pix_fmt",
-            "yuv420p",
+            *build_intermediate_video_encode_args(),
         ]
         if has_audio:
             command.extend(["-c:a", "aac", "-b:a", "192k"])

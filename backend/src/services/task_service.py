@@ -554,6 +554,7 @@ class TaskService(ClipEditingMixin):
         video_path: Optional[Path] = None
         range_dir: Optional[str] = None
         pending_clip_path: Optional[Path] = None
+        pending_clip_paths: set[Path] = set()
         clips_output_dir = Path(self.config.temp_dir) / "clips"
         spec: Optional[WorkflowSpec] = None
         # Finished output from an earlier attempt, which may carry edits, exports
@@ -867,10 +868,11 @@ class TaskService(ClipEditingMixin):
                 set_user_id(user_id)
 
             async def _merge_beats(position: int, beats: Dict[str, Any]) -> None:
-                # Re-read so one clip's beats never replace another's (the checkpoint patch is a top-level replace).
-                merged = dict(checkpoint.get("edit_beats") or {})
-                merged[str(position)] = beats
-                await save_checkpoint({"edit_beats": merged})
+                # Serialise DB checkpoint writes when multiple clips render concurrently.
+                async with session_lock:
+                    merged = dict(checkpoint.get("edit_beats") or {})
+                    merged[str(position)] = beats
+                    await save_checkpoint({"edit_beats": merged})
             broll_session = BRollSession()
             wants_previews: Optional[bool] = None  # checked once a clip renders
             # (virality, render order, still) for each saved clip.
@@ -878,42 +880,35 @@ class TaskService(ClipEditingMixin):
             noun = OUTPUT_NOUNS.get(spec.workflow, "clip")
             rendered_meta: list[tuple[Dict[str, Any], list]] = []
 
-            for i, segment in enumerate(segments_to_render):
-                # Check cancellation
-                await check_cancelled()
-                if i + 1 in completed_positions:
-                    continue
-                if preview_index is not None and i != preview_index:
-                    continue
+            pending_segments = [
+                (i, segment)
+                for i, segment in enumerate(segments_to_render)
+                if (i + 1 not in completed_positions)
+                and (preview_index is None or i == preview_index)
+            ]
+            clip_concurrency = max(
+                1, int(getattr(self.config, "clip_render_concurrency", 2))
+            )
 
-                # Update progress: 70-95% spread across clips
-                shown_index = 1 if preview_index is not None else i + 1
-                clip_progress = 70 + int(
-                    (shown_index / total_clips) * 25
-                ) if total_clips > 0 else 95
-                await update_progress(
-                    clip_progress,
-                    f"Creating {noun} {shown_index}/{total_clips}...",
-                )
-
+            async def _render_segment(seg_index: int, seg: Dict[str, Any]) -> Optional[Dict[str, Any]]:
                 # A partial download is a concatenated timeline. Render against
                 # local timestamps, then store the clip against the source.
-                render_segment = localize_segment(segment, time_map) if time_map else segment
+                render_segment = localize_segment(seg, time_map) if time_map else seg
                 # A planned output carries its own cap (a 90s recap is not cut at 60s).
                 max_clip_seconds = (
-                    float(segment["max_seconds"])
-                    if segment.get("max_seconds")
+                    float(seg["max_seconds"])
+                    if seg.get("max_seconds")
                     else clip_duration(clip_length).maximum
                 )
 
-                async def render_clip():
+                async def render_once():
                     # Built per attempt: a retry reads the beats the first attempt checkpointed (no second model call).
                     job = (
                         FxJob(
                             style=edit_style,
                             task_id=task_id,
-                            clip_index=i,
-                            cached_beats=(checkpoint.get("edit_beats") or {}).get(str(i)),
+                            clip_index=seg_index,
+                            cached_beats=(checkpoint.get("edit_beats") or {}).get(str(seg_index)),
                             on_beats=_merge_beats,
                         )
                         if fx_on
@@ -922,7 +917,7 @@ class TaskService(ClipEditingMixin):
                     return await self.video_service.create_single_clip(
                         video_path,
                         render_segment,
-                        i,
+                        seg_index,
                         clips_output_dir,
                         font_family,
                         font_size,
@@ -938,111 +933,162 @@ class TaskService(ClipEditingMixin):
                         **({"fx": job} if job else {}),
                     )
 
-                clip_info = await render_clip()
-                if clip_info is None and segment.get("required"):
+                info = await render_once()
+                if info is None and seg.get("required"):
                     # A series without part 3 is not a series: try once more, then fail loudly.
                     await check_cancelled()
-                    logger.warning("Required %s %d failed to render; retrying once", noun, i + 1)
-                    clip_info = await render_clip()
-                    if clip_info is None:
+                    logger.warning("Required %s %d failed to render; retrying once", noun, seg_index + 1)
+                    info = await render_once()
+                return info
+
+            inflight: Dict[int, asyncio.Task] = {}
+            next_launch = 0
+
+            def _fill_render_window() -> None:
+                nonlocal next_launch
+                while len(inflight) < clip_concurrency and next_launch < len(pending_segments):
+                    seg_idx, seg_obj = pending_segments[next_launch]
+                    inflight[seg_idx] = asyncio.create_task(_render_segment(seg_idx, seg_obj))
+                    next_launch += 1
+
+            try:
+                for i, segment in pending_segments:
+                    # Check cancellation
+                    await check_cancelled()
+
+                    # Update progress: 70-95% spread across clips
+                    shown_index = 1 if preview_index is not None else i + 1
+                    clip_progress = 70 + int(
+                        (shown_index / total_clips) * 25
+                    ) if total_clips > 0 else 95
+                    await update_progress(
+                        clip_progress,
+                        f"Creating {noun} {shown_index}/{total_clips}...",
+                    )
+
+                    if clip_concurrency > 1 and len(pending_segments) > 1:
+                        _fill_render_window()
+                        render_task = inflight.pop(i)
+                        clip_info = await render_task
+                        _fill_render_window()
+                    else:
+                        clip_info = await _render_segment(i, segment)
+
+                    if clip_info is None and segment.get("required"):
                         raise WorkflowError(
                             "render_incomplete", _render_failure_message(spec, segment)
                         )
-                pending_clip_path = Path(clip_info["path"]) if clip_info else None
-                await check_cancelled()
-                if clip_info is None:
-                    failed_positions.append(i + 1)
-                    continue
-                # Take the email still now: once saved, the clip may move to S3/R2.
-                if wants_previews is None:
-                    wants_previews = await self._completion_email_wanted(task_id)
-                preview = (
-                    await run_in_thread(
-                        clip_preview, Path(clip_info["path"]), clip_info.get("hook_title")
-                    )
-                    if wants_previews
-                    else None
-                )
-                if time_map:
-                    clip_info = await run_in_thread(
-                        restore_clip_timeline, clip_info, time_map, segment
-                    )
-                workflow_fields: Dict[str, Any] = {}
-                if segment.get("hook_type") == "fallback":
-                    # The segment spans the stretch the render looked in; the labels show what the clip plays.
-                    played = source_range_bounds(normalize_source_ranges(clip_info.get("keep_ranges")))
-                    if played:
-                        clip_info["start_time"] = seconds_to_mmss(math.floor(played[0]))
-                        clip_info["end_time"] = seconds_to_mmss(math.floor(played[1]))
-                if segment.get("planned"):
-                    # Labels show the source span the clip plays, on the original timeline.
-                    bounds = source_range_bounds(normalize_source_ranges(segment.get("source_ranges")))
-                    if bounds:
-                        clip_info["start_time"] = seconds_to_mmss(bounds[0])
-                        clip_info["end_time"] = seconds_to_mmss(bounds[1])
-                    meta = copy.deepcopy(segment.get("workflow_meta") or {})
-                    group_output_starts = clip_info.get("group_output_starts") or []
-                    fill_output_starts(meta.get("points"), group_output_starts)
-                    fill_output_starts(meta.get("beats"), group_output_starts)
-                    rendered_meta.append((segment, group_output_starts))
-                    workflow_fields = {
-                        "workflow_role": segment.get("workflow_role"),
-                        "part_number": segment.get("part_number"),
-                        "workflow_meta": meta or None,
-                    }
-
-                async with self._processing_transaction(task_id):
+                    pending_clip_path = Path(clip_info["path"]) if clip_info else None
+                    if pending_clip_path is not None:
+                        pending_clip_paths.add(pending_clip_path)
                     await check_cancelled()
-                    clip_order = max(clip_ids_by_order, default=0) + 1
-                    # Save to DB immediately
-                    clip_id = await self.clip_repo.create_clip(
-                        self.db,
-                        task_id=task_id,
-                        filename=clip_info["filename"],
-                        file_path=clip_info["path"],
-                        start_time=clip_info["start_time"],
-                        end_time=clip_info["end_time"],
-                        duration=clip_info["duration"],
-                        text=clip_info.get("text", ""),
-                        relevance_score=clip_info.get("relevance_score", 0.0),
-                        reasoning=clip_info.get("reasoning", ""),
-                        clip_order=clip_order,
-                        virality_score=clip_info.get("virality_score", 0),
-                        hook_score=clip_info.get("hook_score", 0),
-                        engagement_score=clip_info.get("engagement_score", 0),
-                        value_score=clip_info.get("value_score", 0),
-                        shareability_score=clip_info.get("shareability_score", 0),
-                        hook_type=clip_info.get("hook_type"),
-                        hook_title=clip_info.get("hook_title"),
-                        **workflow_fields,
-                        **({"fx_meta": clip_info["fx_meta"]} if clip_info.get("fx_meta") else {}),
+                    if clip_info is None:
+                        failed_positions.append(i + 1)
+                        continue
+                    # Take the email still now: once saved, the clip may move to S3/R2.
+                    if wants_previews is None:
+                        async with session_lock:
+                            wants_previews = await self._completion_email_wanted(task_id)
+                    preview = (
+                        await run_in_thread(
+                            clip_preview, Path(clip_info["path"]), clip_info.get("hook_title")
+                        )
+                        if wants_previews
+                        else None
                     )
+                    if time_map:
+                        clip_info = await run_in_thread(
+                            restore_clip_timeline, clip_info, time_map, segment
+                        )
+                    workflow_fields: Dict[str, Any] = {}
+                    if segment.get("hook_type") == "fallback":
+                        # The segment spans the stretch the render looked in; the labels show what the clip plays.
+                        played = source_range_bounds(normalize_source_ranges(clip_info.get("keep_ranges")))
+                        if played:
+                            clip_info["start_time"] = seconds_to_mmss(math.floor(played[0]))
+                            clip_info["end_time"] = seconds_to_mmss(math.floor(played[1]))
+                    if segment.get("planned"):
+                        # Labels show the source span the clip plays, on the original timeline.
+                        bounds = source_range_bounds(normalize_source_ranges(segment.get("source_ranges")))
+                        if bounds:
+                            clip_info["start_time"] = seconds_to_mmss(bounds[0])
+                            clip_info["end_time"] = seconds_to_mmss(bounds[1])
+                        meta = copy.deepcopy(segment.get("workflow_meta") or {})
+                        group_output_starts = clip_info.get("group_output_starts") or []
+                        fill_output_starts(meta.get("points"), group_output_starts)
+                        fill_output_starts(meta.get("beats"), group_output_starts)
+                        rendered_meta.append((segment, group_output_starts))
+                        workflow_fields = {
+                            "workflow_role": segment.get("workflow_role"),
+                            "part_number": segment.get("part_number"),
+                            "workflow_meta": meta or None,
+                        }
 
-                    # Update task's clip IDs array
-                    next_clip_ids = {**clip_ids_by_order, clip_order: clip_id}
-                    await self.task_repo.update_task_clips(
-                        self.db, task_id, [next_clip_ids[order] for order in sorted(next_clip_ids)]
-                    )
-                    await save_checkpoint({"completed_positions": sorted(completed_positions | {i + 1})})
-                    if preview_index is not None and user_id:
-                        # The free preview is used up by the clip it gives, in the same commit: a preview
-                        # cancelled or failing after this keeps its clip, and mustn't leave another free one.
-                        await mark_preview_used(self.db, user_id)
+                    async with session_lock:
+                        async with self._processing_transaction(task_id):
+                            await check_cancelled()
+                            clip_order = max(clip_ids_by_order, default=0) + 1
+                            # Save to DB immediately
+                            clip_id = await self.clip_repo.create_clip(
+                                self.db,
+                                task_id=task_id,
+                                filename=clip_info["filename"],
+                                file_path=clip_info["path"],
+                                start_time=clip_info["start_time"],
+                                end_time=clip_info["end_time"],
+                                duration=clip_info["duration"],
+                                text=clip_info.get("text", ""),
+                                relevance_score=clip_info.get("relevance_score", 0.0),
+                                reasoning=clip_info.get("reasoning", ""),
+                                clip_order=clip_order,
+                                virality_score=clip_info.get("virality_score", 0),
+                                hook_score=clip_info.get("hook_score", 0),
+                                engagement_score=clip_info.get("engagement_score", 0),
+                                value_score=clip_info.get("value_score", 0),
+                                shareability_score=clip_info.get("shareability_score", 0),
+                                hook_type=clip_info.get("hook_type"),
+                                hook_title=clip_info.get("hook_title"),
+                                **workflow_fields,
+                                **({"fx_meta": clip_info["fx_meta"]} if clip_info.get("fx_meta") else {}),
+                            )
 
-                    await check_cancelled()
-                pending_clip_path = None
-                clip_ids_by_order[clip_order] = clip_id
-                completed_positions.add(i + 1)
-                if preview:
-                    clip_previews.append((clip_info.get("virality_score") or 0, i, preview))
+                            # Update task's clip IDs array
+                            next_clip_ids = {**clip_ids_by_order, clip_order: clip_id}
+                            await self.task_repo.update_task_clips(
+                                self.db, task_id, [next_clip_ids[order] for order in sorted(next_clip_ids)]
+                            )
+                            await save_checkpoint({"completed_positions": sorted(completed_positions | {i + 1})})
+                            if preview_index is not None and user_id:
+                                # The free preview is used up by the clip it gives, in the same commit: a preview
+                                # cancelled or failing after this keeps its clip, and mustn't leave another free one.
+                                await mark_preview_used(self.db, user_id)
 
-                # Notify frontend via SSE
-                if clip_ready_callback:
-                    clip_record = await self.clip_repo.get_clip_by_id(
-                        self.db, clip_id
-                    )
-                    if clip_record:
-                        await clip_ready_callback(shown_index - 1, total_clips, clip_record)
+                            await check_cancelled()
+                    if pending_clip_path is not None:
+                        pending_clip_paths.discard(pending_clip_path)
+                    pending_clip_path = None
+                    clip_ids_by_order[clip_order] = clip_id
+                    completed_positions.add(i + 1)
+                    if preview:
+                        clip_previews.append((clip_info.get("virality_score") or 0, i, preview))
+
+                    # Notify frontend via SSE
+                    if clip_ready_callback:
+                        async with session_lock:
+                            clip_record = await self.clip_repo.get_clip_by_id(
+                                self.db, clip_id
+                            )
+                        if clip_record:
+                            await clip_ready_callback(shown_index - 1, total_clips, clip_record)
+            finally:
+                for leftover in inflight.values():
+                    if not leftover.done():
+                        leftover.cancel()
+                if inflight:
+                    done_results = await asyncio.gather(*inflight.values(), return_exceptions=True)
+                    for item in done_results:
+                        if isinstance(item, dict) and item.get("path"):
+                            pending_clip_paths.add(Path(item["path"]))
 
             stage_timings["render_seconds"] = round(
                 perf_counter() - render_start, 3
@@ -1133,13 +1179,16 @@ class TaskService(ClipEditingMixin):
             logger.error(f"Error processing task {task_id}: {e}")
             # Clear failed writes before recording the terminal error state.
             await self.db.rollback()
-            if pending_clip_path and pending_clip_path != video_path:
-                try:
-                    if pending_clip_path.resolve().is_relative_to(clips_output_dir.resolve()):
-                        pending_clip_path.unlink(missing_ok=True)
-                        pending_clip_path.with_suffix(".source_map.json").unlink(missing_ok=True)
-                except OSError:
-                    logger.warning("Could not remove unfinished clip %s", pending_clip_path)
+            if pending_clip_path is not None:
+                pending_clip_paths.add(pending_clip_path)
+            for leftover_path in pending_clip_paths:
+                if leftover_path != video_path:
+                    try:
+                        if leftover_path.resolve().is_relative_to(clips_output_dir.resolve()):
+                            leftover_path.unlink(missing_ok=True)
+                            leftover_path.with_suffix(".source_map.json").unlink(missing_ok=True)
+                    except OSError:
+                        logger.warning("Could not remove unfinished clip %s", leftover_path)
             if str(e) == "Task cancelled":
                 await self.task_repo.update_task_status(
                     self.db,

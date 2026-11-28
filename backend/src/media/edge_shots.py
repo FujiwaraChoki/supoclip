@@ -15,8 +15,8 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from .common import INTERMEDIATE_CRF, logger
-from .ffmpeg import run_ffmpeg_command
+from .common import logger
+from .ffmpeg import build_intermediate_video_encode_args, run_ffmpeg_command
 
 # A shot that lasts no longer than this at the very edge of a clip is a sliver of a neighbouring shot.
 EDGE_SHOT_SECONDS = 0.4
@@ -142,12 +142,17 @@ def dark_edge(frames: np.ndarray, limit: int, fade_limit: int) -> int:
 
 def stray_edge_frames(path: Path) -> Tuple[int, int, int]:
     """(stray frames at the start, stray frames at the end, total frames) of a rendered source cut."""
+    head, tail, total, _fps = _stray_edge_frames_with_fps(path)
+    return head, tail, total
+
+
+def _stray_edge_frames_with_fps(path: Path) -> Tuple[int, int, int, float]:
     probed = _probe(path)
     if probed is None:
-        return 0, 0, 0
+        return 0, 0, 0, 0.0
     total, fps = probed
     if total / fps < MIN_CLIP_SECONDS:
-        return 0, 0, total
+        return 0, 0, total, fps
     limit = max(1, int(round(EDGE_SHOT_SECONDS * fps)))
     fade_limit = max(limit, int(round(EDGE_FADE_SECONDS * fps)))
     window = max(4, int(round(EDGE_PROBE_SECONDS * fps)))
@@ -163,7 +168,7 @@ def stray_edge_frames(path: Path) -> Tuple[int, int, int]:
     # Black frames, or a fade from or to black, at the very edge: the same sliver without a hard cut.
     head = head if head is not None and 0 < head <= limit else dark_edge(head_long, limit, fade_limit)
     tail = tail if 0 < tail <= limit else dark_edge(tail_long[::-1], limit, fade_limit)
-    return head, tail, total
+    return head, tail, total, fps
 
 
 def hold_stray_edge_shots(path: Path) -> Tuple[int, int]:
@@ -171,10 +176,14 @@ def hold_stray_edge_shots(path: Path) -> Tuple[int, int]:
 
     Returns the number of frames replaced at the start and at the end. The audio stream is copied.
     """
-    head, tail, total = stray_edge_frames(path)
+    head, tail, total, fps = _stray_edge_frames_with_fps(path)
     if not head and not tail:
         return 0, 0
-    fps = _probe(path)[1]
+    if fps <= 0:
+        probed = _probe(path)
+        if probed is None:
+            return 0, 0
+        fps = probed[1]
     bounds = ([f"start_frame={head}"] if head else []) + ([f"end_frame={total - tail}"] if tail else [])
     # tpad counts frames from a duration and needs a known frame rate after the trim.
     pads = ([f"start_duration={head / fps:.6f}", "start_mode=clone"] if head else []) + (
@@ -183,7 +192,7 @@ def hold_stray_edge_shots(path: Path) -> Tuple[int, int]:
     held = path.with_name(f"{path.stem}.held{path.suffix}")
     result = run_ffmpeg_command([
         "ffmpeg", "-y", "-i", str(path), "-map", "0:v:0", "-map", "0:a?", "-vf", ",".join(steps),
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", str(INTERMEDIATE_CRF), "-pix_fmt", "yuv420p",
+        *build_intermediate_video_encode_args(),
         "-c:a", "copy", "-movflags", "+faststart", str(held),
     ])
     if result.returncode != 0 or not held.exists():

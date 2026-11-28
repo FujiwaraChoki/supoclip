@@ -49,7 +49,8 @@
               }
             ],
             "extend_to_sentence": false,
-            "layout_report": []
+            "layout_report": [],
+            "max_short_side": 720
           }
         }
       ],

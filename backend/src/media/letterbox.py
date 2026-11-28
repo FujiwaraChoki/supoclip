@@ -16,10 +16,11 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+import cv2
 import numpy as np
 
-from .common import INTERMEDIATE_CRF, logger
-from .ffmpeg import ffprobe_duration, run_ffmpeg_command
+from .common import logger
+from .ffmpeg import build_intermediate_video_encode_args, ffprobe_duration, run_ffmpeg_command
 
 PROBE_FRAMES = 10
 # A pixel is black at or below this (0-255); a row is black when all of its pixels are. Bars are
@@ -83,7 +84,24 @@ def bars_from_frames(frames: np.ndarray) -> Optional[Tuple[float, float]]:
 
 
 def probe_frames(input_path: Path, duration: float, probe_h: int) -> np.ndarray:
-    """A few small colour frames (n, h, w, 3) spread over the clip, each fetched by seeking (no full decode)."""
+    """A few small colour frames (n, h, w, 3) spread over the clip, fetched via one VideoCapture seek pass."""
+    frames: List[np.ndarray] = []
+    capture = cv2.VideoCapture(str(input_path))
+    try:
+        if capture.isOpened():
+            for index in range(PROBE_FRAMES):
+                at = duration * (index + 0.5) / PROBE_FRAMES
+                capture.set(cv2.CAP_PROP_POS_MSEC, max(0.0, at) * 1000.0)
+                ok, frame = capture.read()
+                if ok and frame is not None and frame.size > 0:
+                    resized = cv2.resize(frame, (FACE_PROBE_W, probe_h), interpolation=cv2.INTER_AREA)
+                    frames.append(resized)
+    finally:
+        capture.release()
+    if len(frames) >= 3:
+        return np.stack(frames)
+
+    # Fallback to ffmpeg seeks when OpenCV cannot decode the container.
     size = FACE_PROBE_W * probe_h * 3
     frames = []
     for index in range(PROBE_FRAMES):
@@ -169,7 +187,7 @@ def cropped_copy(input_path: Path, destination: Path, width: int, height: int, t
     """The clip without its bars, for the layout analysis. Audio is not needed there."""
     result = run_ffmpeg_command([
         "ffmpeg", "-y", "-i", str(input_path), "-an", "-vf", f"crop={width}:{height}:0:{top}",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", str(INTERMEDIATE_CRF), "-pix_fmt", "yuv420p",
+        *build_intermediate_video_encode_args(),
         str(destination),
     ])
     return result.returncode == 0 and destination.exists()

@@ -4,6 +4,8 @@ from pathlib import Path
 
 from typing import List, Dict, Any, Tuple, Optional
 
+import os
+
 import logging
 
 import numpy as np
@@ -160,9 +162,24 @@ _WHISPER_MODEL_CACHE: Dict[str, Any] = {}
 
 FINAL_VIDEO_CRF = 19
 
-FINAL_VIDEO_PRESET = "medium"
+FINAL_VIDEO_PRESET = os.getenv("FINAL_VIDEO_PRESET", "veryfast").strip() or "veryfast"
 
 INTERMEDIATE_CRF = 16
+
+INTERMEDIATE_VIDEO_PRESET = os.getenv("INTERMEDIATE_VIDEO_PRESET", "ultrafast").strip() or "ultrafast"
+
+
+def _parse_encode_threads(raw: Optional[str], default: int = 6) -> int:
+    try:
+        value = int((raw or "").strip())
+    except (TypeError, ValueError):
+        return default
+    return max(0, value)
+
+
+# Bound per-encode libx264 threads so high-core servers and concurrent workers do
+# not oversubscribe CPU cores and thrash cache. Set FFMPEG_ENCODE_THREADS=0 for auto.
+FFMPEG_ENCODE_THREADS = _parse_encode_threads(os.getenv("FFMPEG_ENCODE_THREADS"), default=6)
 
 OUTPUT_FPS = 30
 
@@ -223,6 +240,6 @@ KENBURNS_SUPERSAMPLE_H = 2880
 
 # Mild luma-only sharpen applied after the 9:16 upscale; vertical crops are
 # usually stretched 1.3-2.7x from the source, which softens edges.
-UPSCALE_SHARPEN_FILTER = "unsharp=5:5:0.6:5:5:0.0"
+UPSCALE_SHARPEN_FILTER = "unsharp=3:3:0.6:3:3:0.0"
 
 VERTICAL_SCALE_CHAIN = f"scale=1080:1920:flags=lanczos,{UPSCALE_SHARPEN_FILTER},setsar=1"

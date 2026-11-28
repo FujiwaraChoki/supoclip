@@ -285,6 +285,7 @@ def create_optimized_clip(
     point_labels: Optional[List[Dict[str, Any]]] = None,
     fx: Optional["FxRenderInput"] = None,
     caption_override: Optional[Dict[str, Any]] = None,
+    max_short_side: Optional[int] = None,
 ) -> bool:
     """Create clip with optional subtitles. output_format: 'vertical' (9:16) or 'original' (keep source size).
 
@@ -586,6 +587,7 @@ def create_optimized_clip(
                     broll_overlays=broll_overlays,
                     layout_report=layout_report,
                     build_ass=build_ass,
+                    max_short_side=max_short_side,
                 )
                 if not framed_ok:
                     raise RuntimeError("ffmpeg reframe render failed")
@@ -623,6 +625,7 @@ def create_optimized_clip(
                     speaker_words=speaker_words,
                     vertical_plan=vertical_plan,
                     broll_overlays=overlays,
+                    **({"max_short_side": max_short_side} if max_short_side else {}),
                 )[0]
 
             framed_ok = render(broll_overlays)
@@ -1138,6 +1141,7 @@ def _render_fx_ladder(
     broll_overlays: Optional[List[Dict[str, Any]]],
     layout_report: Optional[Dict[str, Any]],
     build_ass,
+    max_short_side: Optional[int] = None,
 ) -> bool:
     """Render one FX clip down the fallback ladder (FINAL §6.6). Returns whether ``final_clip_path`` was written.
 
@@ -1238,6 +1242,7 @@ def _render_fx_ladder(
             broll_overlays=overlays,
             fx_request=request(current_plan, overlays),
             fx_report=options,
+            **({"max_short_side": max_short_side} if max_short_side else {}),
         )[0]
         return ok, options.get("result")
 
@@ -1354,6 +1359,7 @@ def _render_fx_ladder(
                 speaker_words=speaker_words,
                 vertical_plan=legacy_plan,
                 broll_overlays=current_overlays,
+                **({"max_short_side": max_short_side} if max_short_side else {}),
             )[0]
 
         ok = render(broll_overlays)

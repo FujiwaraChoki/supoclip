@@ -54,7 +54,7 @@ from ..edit_fx.contracts import (
 )
 from ..edit_fx.warp import Warp, build_warp, identity_warp
 from .broll_overlay import broll_overlay_graph
-from .ffmpeg import NO_CHAPTERS, build_final_video_encode_args, select_audio_stream_index
+from .ffmpeg import NO_CHAPTERS, build_final_video_encode_args, select_audio_stream_index, short_side_scale_filter
 
 logger = logging.getLogger(__name__)
 
@@ -433,13 +433,14 @@ def build_p2_command(job_path: Path, read_dirs: Sequence[Path]) -> list[str]:
 
 def build_p3_command(*, video_input: list[str], input_path: Path, bus_path: Path | None, subs: str | None,
                      audio_graph: str | None, encode_args: list[str] | None, out_frames: int,
-                     output_path: Path) -> list[str]:
+                     output_path: Path, cap_scale: str | None = None) -> list[str]:
     """§6.3 P3: raw RGBA (or the file-mode .mov) → ASS → BT.709 tv yuv420p → x264, tagged; voice ⊕ bus → AAC."""
     inputs = [*video_input, "-i", str(input_path)]
     if bus_path is not None:
         inputs += ["-i", str(bus_path)]
     # setparams tags the frames too: newer encoders take colour properties from the frames before the -color_* options.
-    video = (f"[0:v]{subs + ',' if subs else ''}setsar=1,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,"
+    cap = f"{cap_scale}," if cap_scale else ""
+    video = (f"[0:v]{subs + ',' if subs else ''}{cap}setsar=1,scale=out_color_matrix=bt709:out_range=tv,format=yuv420p,"
              f"setparams=range=tv:color_primaries=bt709:color_trc=bt709:colorspace=bt709[fxv_out]")
     graph = video if not audio_graph else f"{video};{audio_graph}"
     encode = _at_chain_rate(list(encode_args) if encode_args is not None else build_final_video_encode_args())
@@ -836,7 +837,8 @@ def run_fx_chain(*, input_path: Path, output_path: Path, head: str, head_label: 
                  voice_fragment: str | None = None, scratch_dir: Path,
                  tail: str = "", encode_args: list[str] | None = None, has_audio: bool = True,
                  should_cancel: Callable[[], bool] | None = None,
-                 on_progress: Callable[[float], None] | None = None) -> FxResult:
+                 on_progress: Callable[[float], None] | None = None,
+                 max_short_side: int | None = None) -> FxResult:
     """Render ``input_path`` through P1 → P2 → P3 (or P1 → P3 for ``mode="safe"``) into ``output_path``.
 
     head: the complete P1 head ending in [head_label]. Generation: the framing head (no subs). Studio: its full graph
@@ -1064,9 +1066,17 @@ def run_fx_chain(*, input_path: Path, output_path: Path, head: str, head_label: 
                 upstream = None
 
         video_input = raw_input if upstream is not None else ["-i", str(mov_path)]
+        cap_scale = short_side_scale_filter(out_w, out_h, max_short_side)
+        if cap_scale is not None and max_short_side:
+            from .ffmpeg import round_to_even
+            scale_ratio = max_short_side / min(out_w, out_h)
+            expected_w = round_to_even(round(out_w * scale_ratio))
+            expected_h = round_to_even(round(out_h * scale_ratio))
+        else:
+            expected_w, expected_h = out_w, out_h
         p3_cmd = build_p3_command(
             video_input=video_input, input_path=input_path, bus_path=bus_path, subs=subs, audio_graph=audio_graph,
-            encode_args=encode_args, out_frames=out_frames, output_path=output_path,
+            encode_args=encode_args, out_frames=out_frames, output_path=output_path, cap_scale=cap_scale,
         )
         try:
             p3 = spawn("p3", p3_cmd, stdin=upstream if upstream is not None else subprocess.DEVNULL,
@@ -1105,8 +1115,8 @@ def run_fx_chain(*, input_path: Path, output_path: Path, head: str, head_label: 
         # yields one frame less (the audio is still bounded at out_duration: A/V stays within a frame).
         if frames != out_frames and not (not full and out_frames - 1 <= frames <= out_frames):
             return result(False, f"output: {frames} frames, expected {out_frames}", face=face_track)
-        if (probe["width"], probe["height"]) != (out_w, out_h):
-            return result(False, f"output: {probe['width']}x{probe['height']}, expected {out_w}x{out_h}",
+        if (probe["width"], probe["height"]) != (expected_w, expected_h):
+            return result(False, f"output: {probe['width']}x{probe['height']}, expected {expected_w}x{expected_h}",
                           face=face_track)
         if on_progress is not None:
             try:
