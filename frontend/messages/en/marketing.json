@@ -55,13 +55,14 @@
     "dismiss": "Dismiss"
   },
   "sale": {
-    "pill": "Black Friday: {percent}% off yearly Pro and Creator until {date}",
+    "pill": "Black Friday: {percent}% off Pro and Creator until {date}",
     "badge": "{percent}% off",
     "noteYearly": "{percent}% off your first year, then ${price}/yr",
-    "headline": "{percent}% off yearly Pro and Creator",
+    "headline": "{percent}% off Pro and Creator",
     "note": "Black Friday, until {date}. See pricing",
     "dismiss": "Dismiss",
-    "badgeYearly": "{percent}% off yearly"
+    "badgeYearly": "{percent}% off yearly",
+    "noteMonthly": "{percent}% off your first {months} months, then ${price}/mo"
   },
   "related": {
     "continueExploring": "Continue exploring",

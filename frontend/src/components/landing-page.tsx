@@ -31,7 +31,7 @@ import { PublishSection } from "@/components/landing/publish-section";
 import { Reveal, SectionHeading } from "@/components/landing/reveal";
 import { CreatorOfferBanner } from "@/components/marketing/creator-offer-banner";
 import { SaleBand, SaleNote, SalePill, useActiveSale } from "@/components/marketing/sale";
-import { saleApplies, salePrice, type Sale } from "@/lib/sale";
+import { saleApplies, salePrice, SALE_MONTHLY_MONTHS, type Sale } from "@/lib/sale";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SocialProviderIcon } from "@/components/social-provider-icon";
 import { Button } from "@/components/ui/button";
@@ -139,7 +139,9 @@ function getPlans(
           : interval === "year" && annualMonthsFree(plan) > 0 ? `$${annualFullPrice(plan)}` : null,
         period: interval === "year" ? t("pricing.period.year") : t("pricing.period.month"),
         note: onSale && sale
-          ? t("sale.noteYearly", { percent: sale.percentOff, price: planPrice(plan, interval) })
+          ? interval === "year"
+            ? t("sale.noteYearly", { percent: sale.percentOff, price: planPrice(plan, interval) })
+            : t("sale.noteMonthly", { percent: sale.percentOff, months: SALE_MONTHLY_MONTHS, price: planPrice(plan, interval) })
           : interval === "year" ? t("pricing.billedYearly", { price: annualMonthlyEquivalent(plan) }) : null,
         saleBadge: sale ? t(onSale ? "sale.badge" : "sale.badgeYearly", { percent: sale.percentOff }) : null,
         onSale,
@@ -239,10 +241,10 @@ export default function LandingPage() {
   const [teamSeats, setTeamSeats] = useState<number>(teamConfig.includedSeats);
   const teamPricing = calculateTeamPricing(teamSeats, billingInterval, teamConfig);
   const sale = useActiveSale();
-  // While a yearly sale runs, pricing opens on yearly, unless the visitor has already chosen.
+  // While a sale covers yearly plans, pricing opens on yearly (the bigger saving), unless the visitor has chosen.
   const intervalChosen = useRef(false);
   useEffect(() => {
-    if (sale && !intervalChosen.current && saleApplies(sale, "year") && !saleApplies(sale, "month")) setBillingInterval("year");
+    if (sale && !intervalChosen.current && saleApplies(sale, "year")) setBillingInterval("year");
   }, [sale]);
   const chooseInterval = (value: BillingInterval) => {
     intervalChosen.current = true;

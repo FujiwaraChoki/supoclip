@@ -55,13 +55,14 @@
     "dismiss": "Schließen"
   },
   "sale": {
-    "pill": "Black Friday: {percent} % Rabatt auf Pro und Creator im Jahresabo bis {date}",
+    "pill": "Black Friday: {percent} % Rabatt auf Pro und Creator bis {date}",
     "badge": "{percent} % Rabatt",
     "noteYearly": "{percent} % Rabatt im ersten Jahr, danach ${price}/Jahr",
-    "headline": "{percent} % Rabatt auf Pro und Creator im Jahresabo",
+    "headline": "{percent} % Rabatt auf Pro und Creator",
     "note": "Black Friday, bis {date}. Zu den Preisen",
     "dismiss": "Schließen",
-    "badgeYearly": "{percent} % Rabatt jährlich"
+    "badgeYearly": "{percent} % Rabatt jährlich",
+    "noteMonthly": "{percent} % Rabatt in den ersten {months} Monaten, danach ${price}/Monat"
   },
   "related": {
     "continueExploring": "Weiter stöbern",

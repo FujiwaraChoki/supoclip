@@ -706,7 +706,7 @@ describe("/api/billing/checkout", () => {
       });
     });
 
-    it("leaves monthly plans at full price: the sale is for yearly plans only", async () => {
+    it("applies the sale to monthly plans too", async () => {
       vi.useFakeTimers({ toFake: ["Date"] });
       vi.setSystemTime(duringSale);
       const stripe = stripeWithCoupon({ id: "blackfriday-2026", valid: true, percent_off: 40 });
@@ -715,25 +715,10 @@ describe("/api/billing/checkout", () => {
       const response = await checkout({ plan: "pro", interval: "month" });
 
       expect(response.status).toBe(200);
-      expect(stripe.coupons.retrieve).not.toHaveBeenCalled();
-      const params = stripe.checkout.sessions.create.mock.calls[0][0];
-      expect(params.discounts).toBeUndefined();
-      expect(params.metadata.sale).toBeUndefined();
-    });
-
-    it("keeps a creator's discount on a monthly plan during the sale", async () => {
-      vi.useFakeTimers({ toFake: ["Date"] });
-      vi.setSystemTime(duringSale);
-      vi.mocked(prisma.affiliate.findUnique).mockResolvedValue(
-        { user_id: "creator-1", status: "approved", stripe_promotion_code_id: "promo_maya" } as never,
-      );
-      const stripe = stripeWithCoupon({ id: "blackfriday-2026", valid: true, percent_off: 40 });
-      vi.mocked(getStripeClient).mockReturnValue(stripe as never);
-
-      const response = await checkout({ plan: "pro", interval: "month", code: "MAYA" });
-
-      expect(response.status).toBe(200);
-      expect(stripe.checkout.sessions.create.mock.calls[0][0].discounts).toEqual([{ promotion_code: "promo_maya" }]);
+      expect(stripe.checkout.sessions.create.mock.calls[0][0]).toMatchObject({
+        discounts: [{ coupon: "blackfriday-2026" }],
+        metadata: { plan: "pro", interval: "month", sale: "black-friday-2026" },
+      });
     });
 
     it("prefers the sale over a creator code but keeps the creator's attribution", async () => {

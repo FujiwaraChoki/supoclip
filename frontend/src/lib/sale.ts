@@ -8,8 +8,8 @@ import type { BillingInterval } from "@/lib/billing-plans";
  * The coupon has the same id in every Stripe account checkout can use:
  * `percent_off` = `percentOff`, `duration: "repeating"`, `duration_in_months` = 3, so on a
  * yearly plan it covers the first year (only the first invoice falls inside the three
- * months). Monthly and yearly prices share a Stripe product, so the coupon itself can't be
- * limited to yearly: `intervals` is what keeps monthly checkouts at full price.
+ * months) and on a monthly plan the first three months. Monthly and yearly prices share a
+ * Stripe product, so the coupon itself can't be limited to one interval: `intervals` decides.
  */
 export type SaleMedia = { poster: string; webm: string; mp4: string };
 
@@ -34,14 +34,14 @@ export const BLACK_FRIDAY_2026: Sale = {
   id: "black-friday-2026",
   couponId: "blackfriday-2026",
   percentOff: 40,
-  intervals: ["year"],
+  intervals: ["month", "year"],
   startsAt: new Date("2026-11-27T00:00:00Z"),
   // Sunday 6 December 2026, end of day Pacific time.
   endsAt: new Date("2026-12-07T08:00:00Z"),
   media: {
-    poster: `${SALE_MEDIA_BASE}/black-friday-2026/black-friday-studio-v2.webp`,
-    webm: `${SALE_MEDIA_BASE}/black-friday-2026/black-friday-studio-v2.webm`,
-    mp4: `${SALE_MEDIA_BASE}/black-friday-2026/black-friday-studio-v2.mp4`,
+    poster: `${SALE_MEDIA_BASE}/black-friday-2026/black-friday-studio.webp`,
+    webm: `${SALE_MEDIA_BASE}/black-friday-2026/black-friday-studio.webm`,
+    mp4: `${SALE_MEDIA_BASE}/black-friday-2026/black-friday-studio.mp4`,
   },
   scene: {
     poster: `${SALE_MEDIA_BASE}/black-friday-2026/black-friday-scene.webp`,
@@ -51,6 +51,9 @@ export const BLACK_FRIDAY_2026: Sale = {
 };
 
 export const SALES: readonly Sale[] = [BLACK_FRIDAY_2026];
+
+/** Months a monthly subscriber pays the sale price (the coupon's `duration_in_months`). */
+export const SALE_MONTHLY_MONTHS = 3;
 
 export function saleApplies(sale: Sale, interval: BillingInterval): boolean {
   return sale.intervals.includes(interval);

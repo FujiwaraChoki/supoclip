@@ -46,13 +46,13 @@ describe("Black Friday on the landing page", () => {
     const band = await screen.findByTestId("sale-band");
     const link = band.querySelector("a");
     expect(link).toHaveAttribute("href", "#pricing");
-    expect(link).toHaveAccessibleName("Black Friday: 40% off yearly Pro and Creator until Dec 6");
+    expect(link).toHaveAccessibleName("Black Friday: 40% off Pro and Creator until Dec 6");
     expect([...band.querySelectorAll("video source")].map((s) => s.getAttribute("src"))).toEqual([
-      expect.stringMatching(/black-friday-studio-v2\.webm$/),
-      expect.stringMatching(/black-friday-studio-v2\.mp4$/),
+      expect.stringMatching(/black-friday-studio\.webm$/),
+      expect.stringMatching(/black-friday-studio\.mp4$/),
     ]);
     const note = await screen.findByTestId("sale-note");
-    expect(note).toHaveTextContent("40% off yearly Pro and Creator");
+    expect(note).toHaveTextContent("40% off Pro and Creator");
     expect(note).toHaveTextContent("Black Friday, until Dec 6. See pricing");
     expect(note.querySelector("video source")?.getAttribute("src")).toMatch(/black-friday-scene\.webm$/);
   });
@@ -80,7 +80,7 @@ describe("Black Friday on the landing page", () => {
 
     const band = await screen.findByTestId("sale-band");
     expect(band.querySelector("video")).toBeNull();
-    expect(band.querySelector("img")?.getAttribute("src")).toMatch(/black-friday-studio-v2\.webp$/);
+    expect(band.querySelector("img")?.getAttribute("src")).toMatch(/black-friday-studio\.webp$/);
     const note = await screen.findByTestId("sale-note");
     expect(note.querySelector("img")?.getAttribute("src")).toMatch(/black-friday-scene\.webp$/);
   });
