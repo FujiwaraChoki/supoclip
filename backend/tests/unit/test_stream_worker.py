@@ -103,6 +103,32 @@ async def test_processing_downloads_audio_then_time_mapped_sections(stream_confi
     assert shifted["words"] == [{"text": "hello", "start": 1000, "end": 1500}]
 
 
+async def test_short_audio_probe_does_not_clamp_away_later_stream_sections(stream_config, monkeypatch):
+    # The audio probes at 600s (HLS timestamps) while the VOD and its transcript
+    # run much longer; the selected moments sit past that probed end.
+    stream_config.youtube_section_padding_seconds = 10.0
+    downloads = []
+
+    def audio(url, duration, task_id, *, max_duration=None, operation=None):
+        return _op_file(stream_config, task_id, operation, "source.m4a")
+
+    def download(url, *, audio=False, ranges=None, expected_duration=None, max_duration=None, task_id=None, operation=None):
+        downloads.append((ranges, expected_duration, max_duration))
+        path = _op_file(stream_config, task_id, operation, "selected-segments.mkv")
+        save_time_map(path, build_time_map(ranges))
+        return path
+
+    monkeypatch.setattr(video_module, "download_stream_audio", audio)
+    monkeypatch.setattr(stream_source, "_download", download)
+    monkeypatch.setattr(video_module, "download_stream_video", lambda *a, **k: pytest.fail("full download"))
+    _pipeline_mocks(monkeypatch, [_segment("20:00", "20:30"), _segment("50:00", "50:40")])
+
+    await VideoService.process_video_complete(KICK_URL, "kick", task_id="task1", max_video_duration=3600)
+
+    # The provider clamps against the VOD's own length; the plan cap still applies.
+    assert downloads == [([(1190.0, 1240.0), (2990.0, 3050.0)], None, 3600)]
+
+
 async def test_processing_does_not_fetch_metadata_twice(stream_config, monkeypatch):
     assert not hasattr(video_module, "fetch_stream_info")
 
