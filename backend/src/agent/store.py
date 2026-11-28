@@ -14,10 +14,21 @@ from typing import Any, Optional
 from sqlalchemy import text
 
 from ..database import AsyncSessionLocal
+from .rate_limit import (
+    BurstLimitReached,
+    ConcurrentLimitReached,
+    DailyLimitReached,
+    TrialLimitReached,
+    TurnLimits,
+)
 
 ACTIVE_RUN_STATUSES = ("queued", "running")
 OPEN_RUN_STATUSES = ("queued", "running", "awaiting_approval")
 MAX_MEMORIES = 40
+# Lock ordering: always acquire _USER_LOCK_SEED before _CONVERSATION_LOCK_SEED
+# so concurrent turns and follow-ups can never deadlock.
+_USER_LOCK_SEED = 72613
+_CONVERSATION_LOCK_SEED = 72611
 
 
 def new_id() -> str:
@@ -244,38 +255,230 @@ _RUN_COLUMNS = (
 )
 
 
-async def create_run(conversation_id: str, user_id: str, trigger: str = "user") -> Optional[dict]:
-    """A new turn, or None when this conversation already has one open.
+async def _active_runs_count(db, user_id: str, stale_seconds: int) -> int:
+    row = (
+        await db.execute(
+            text(
+                f"""
+                SELECT COUNT(*) AS n
+                FROM agent_runs
+                WHERE user_id = :user_id
+                  AND status IN {ACTIVE_RUN_STATUSES}
+                  AND COALESCE(heartbeat_at, created_at) >= NOW() - make_interval(secs => :stale_seconds)
+                """
+            ),
+            {"user_id": user_id, "stale_seconds": int(stale_seconds)},
+        )
+    ).fetchone()
+    return int(row.n if row else 0)
 
-    The partial unique check is done in one statement so two quick sends can't
-    start two turns that would interleave in the transcript.
+
+async def _check_limits_in_tx(db, user_id: str, limits: TurnLimits) -> None:
+    # Only Pro trial accounts need a lifetime count; full-access accounts scan
+    # only the last 24 hours using ix_agent_turn_events_user_created.
+    if limits.trial_limit is not None:
+        row = (
+            await db.execute(
+                text(
+                    """
+                    SELECT
+                        COUNT(*) AS total_turns,
+                        COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours') AS daily_turns,
+                        COUNT(*) FILTER (WHERE created_at > NOW() - make_interval(secs => :burst_window)) AS burst_turns,
+                        GREATEST(
+                            1,
+                            CEIL(EXTRACT(EPOCH FROM (
+                                MIN(created_at) FILTER (WHERE created_at > NOW() - INTERVAL '24 hours')
+                                + INTERVAL '24 hours' - NOW()
+                            )))
+                        )::INTEGER AS daily_retry_after,
+                        GREATEST(
+                            1,
+                            CEIL(EXTRACT(EPOCH FROM (
+                                MIN(created_at) FILTER (WHERE created_at > NOW() - make_interval(secs => :burst_window))
+                                + make_interval(secs => :burst_window) - NOW()
+                            )))
+                        )::INTEGER AS burst_retry_after
+                    FROM agent_turn_events
+                    WHERE user_id = :user_id
+                    """
+                ),
+                {"user_id": user_id, "burst_window": int(limits.burst_window_seconds)},
+            )
+        ).fetchone()
+        total_turns = int(row.total_turns if row and row.total_turns is not None else 0)
+        if total_turns >= limits.trial_limit:
+            raise TrialLimitReached()
+    else:
+        row = (
+            await db.execute(
+                text(
+                    """
+                    SELECT
+                        COUNT(*) AS daily_turns,
+                        COUNT(*) FILTER (WHERE created_at > NOW() - make_interval(secs => :burst_window)) AS burst_turns,
+                        GREATEST(
+                            1,
+                            CEIL(EXTRACT(EPOCH FROM (
+                                MIN(created_at) + INTERVAL '24 hours' - NOW()
+                            )))
+                        )::INTEGER AS daily_retry_after,
+                        GREATEST(
+                            1,
+                            CEIL(EXTRACT(EPOCH FROM (
+                                MIN(created_at) FILTER (WHERE created_at > NOW() - make_interval(secs => :burst_window))
+                                + make_interval(secs => :burst_window) - NOW()
+                            )))
+                        )::INTEGER AS burst_retry_after
+                    FROM agent_turn_events
+                    WHERE user_id = :user_id
+                      AND created_at > NOW() - INTERVAL '24 hours'
+                    """
+                ),
+                {"user_id": user_id, "burst_window": int(limits.burst_window_seconds)},
+            )
+        ).fetchone()
+    daily_turns = int(row.daily_turns if row and row.daily_turns is not None else 0)
+    burst_turns = int(row.burst_turns if row and row.burst_turns is not None else 0)
+    if daily_turns >= limits.daily_limit:
+        raise DailyLimitReached(retry_after=row.daily_retry_after if row else None)
+    if burst_turns >= limits.burst_limit:
+        raise BurstLimitReached(retry_after=row.burst_retry_after if row else None)
+    if await _active_runs_count(db, user_id, limits.stale_run_seconds) >= limits.max_concurrent:
+        raise ConcurrentLimitReached()
+
+
+async def check_user_turn_limits(user_id: str, limits: TurnLimits) -> None:
+    """Fast pre-check before creating an empty chat.
+
+    ``create_user_run`` repeats the same checks atomically under the per-user lock.
+    """
+    async with AsyncSessionLocal() as db:
+        await _check_limits_in_tx(db, user_id, limits)
+
+
+async def _create_run_inner(
+    conversation_id: str,
+    user_id: str,
+    trigger: str,
+    *,
+    limits: Optional[TurnLimits] = None,
+    max_concurrent: Optional[int] = None,
+    stale_seconds: int = 90,
+    settle_approval: bool = False,
+) -> tuple[Optional[dict], Optional[dict]]:
+    """Insert a new run under the user -> conversation lock order.
+
+    When ``settle_approval`` is True, an existing ``awaiting_approval`` run in the
+    same conversation is completed atomically *after* all limits pass, so a
+    rejected request can never silently decline a pending approval.
     """
     run_id = new_id()
+    declined_run: Optional[dict] = None
     async with AsyncSessionLocal() as db:
-        # NOT EXISTS alone doesn't see a concurrent uncommitted insert: serialize per conversation.
+        await db.execute(text("SET LOCAL lock_timeout = '5s'"))
+        # Strict lock order: user first, then conversation.
         await db.execute(
-            text("SELECT pg_advisory_xact_lock(hashtextextended(:conversation_id, 72611))"),
+            text(f"SELECT pg_advisory_xact_lock(hashtextextended(:user_id, {_USER_LOCK_SEED}))"),
+            {"user_id": user_id},
+        )
+        await db.execute(
+            text(f"SELECT pg_advisory_xact_lock(hashtextextended(:conversation_id, {_CONVERSATION_LOCK_SEED}))"),
             {"conversation_id": conversation_id},
         )
+        existing = (
+            await db.execute(
+                text(
+                    f"SELECT {_RUN_COLUMNS} FROM agent_runs WHERE conversation_id = :conversation_id "
+                    f"AND status IN {OPEN_RUN_STATUSES} ORDER BY created_at DESC LIMIT 1"
+                ),
+                {"conversation_id": conversation_id},
+            )
+        ).fetchone()
+        if existing is not None:
+            if existing.status != "awaiting_approval" or not settle_approval:
+                return None, None
+        if limits is not None:
+            await _check_limits_in_tx(db, user_id, limits)
+        elif max_concurrent is not None:
+            if await _active_runs_count(db, user_id, stale_seconds) >= max_concurrent:
+                return None, None
+        if existing is not None and existing.status == "awaiting_approval" and settle_approval:
+            settled = (
+                await db.execute(
+                    text(
+                        "UPDATE agent_runs SET status = 'completed', pending = NULL, "
+                        "updated_at = NOW(), heartbeat_at = NOW() "
+                        "WHERE id = :id AND status = 'awaiting_approval' RETURNING id"
+                    ),
+                    {"id": existing.id},
+                )
+            ).fetchone()
+            if settled is not None:
+                declined_run = _run(existing)
         row = (
             await db.execute(
                 text(
                     f"""
                     INSERT INTO agent_runs (id, conversation_id, user_id, status, trigger, heartbeat_at)
-                    SELECT CAST(:id AS VARCHAR), CAST(:conversation_id AS VARCHAR), CAST(:user_id AS VARCHAR),
-                           'queued', CAST(:trigger AS VARCHAR), NOW()
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM agent_runs
-                        WHERE conversation_id = CAST(:conversation_id AS VARCHAR) AND status IN {OPEN_RUN_STATUSES}
-                    )
+                    VALUES (:id, :conversation_id, :user_id, 'queued', :trigger, NOW())
                     RETURNING {_RUN_COLUMNS}
                     """
                 ),
                 {"id": run_id, "conversation_id": conversation_id, "user_id": user_id, "trigger": trigger},
             )
         ).fetchone()
+        if row is not None and trigger == "user":
+            # Belt-and-suspenders alongside trg_agent_runs_record_turn_event.
+            await db.execute(
+                text(
+                    "INSERT INTO agent_turn_events (run_id, user_id, created_at) "
+                    "VALUES (:run_id, :user_id, :created_at) ON CONFLICT (run_id) DO NOTHING"
+                ),
+                {"run_id": row.id, "user_id": user_id, "created_at": row.created_at},
+            )
         await db.commit()
-    return _run(row) if row else None
+    return (_run(row) if row else None), declined_run
+
+
+async def create_user_run(
+    conversation_id: str,
+    user_id: str,
+    *,
+    limits: Optional[TurnLimits] = None,
+    stale_seconds: int = 90,
+) -> tuple[Optional[dict], Optional[dict]]:
+    """Start a user turn, atomically checking limits and settling any pending approval."""
+    return await _create_run_inner(
+        conversation_id,
+        user_id,
+        "user",
+        limits=limits,
+        stale_seconds=stale_seconds,
+        settle_approval=True,
+    )
+
+
+async def create_run(
+    conversation_id: str,
+    user_id: str,
+    trigger: str = "user",
+    *,
+    limits: Optional[TurnLimits] = None,
+    max_concurrent: Optional[int] = None,
+    stale_seconds: int = 90,
+) -> Optional[dict]:
+    """A new turn, or None when this conversation already has one open (or a follow-up is deferred)."""
+    run, _ = await _create_run_inner(
+        conversation_id,
+        user_id,
+        trigger,
+        limits=limits,
+        max_concurrent=max_concurrent,
+        stale_seconds=stale_seconds,
+        settle_approval=False,
+    )
+    return run
 
 
 async def get_run(run_id: str) -> Optional[dict]:
@@ -319,9 +522,23 @@ async def update_run(run_id: str, **fields: Any) -> None:
         await db.commit()
 
 
-async def claim_approval(run_id: str) -> Optional[dict]:
+async def claim_approval(
+    run_id: str,
+    *,
+    user_id: Optional[str] = None,
+    max_concurrent: Optional[int] = None,
+    stale_seconds: int = 90,
+) -> Optional[dict]:
     """Move a turn waiting for approval back to running; None if someone else did first."""
     async with AsyncSessionLocal() as db:
+        if user_id is not None and max_concurrent is not None:
+            await db.execute(text("SET LOCAL lock_timeout = '5s'"))
+            await db.execute(
+                text(f"SELECT pg_advisory_xact_lock(hashtextextended(:user_id, {_USER_LOCK_SEED}))"),
+                {"user_id": user_id},
+            )
+            if await _active_runs_count(db, user_id, stale_seconds) >= max_concurrent:
+                raise ConcurrentLimitReached()
         row = (
             await db.execute(
                 text(
@@ -380,13 +597,52 @@ async def turns_today(user_id: str) -> int:
         row = (
             await db.execute(
                 text(
-                    "SELECT COUNT(*) AS n FROM agent_runs WHERE user_id = :user_id AND trigger = 'user' "
+                    "SELECT COUNT(*) AS n FROM agent_turn_events WHERE user_id = :user_id "
                     "AND created_at > NOW() - INTERVAL '24 hours'"
                 ),
                 {"user_id": user_id},
             )
         ).fetchone()
     return int(row.n if row else 0)
+
+
+async def daily_turn_usage(user_id: str, daily_limit: int) -> dict:
+    """Turns in the rolling 24-hour window and, at the cap, seconds until one frees up.
+
+    ``retry_after`` is when the oldest turn that keeps the account at the cap leaves the
+    window (the same ledger ``_check_limits_in_tx`` enforces), or None below the cap.
+    """
+    async with AsyncSessionLocal() as db:
+        row = (
+            await db.execute(
+                text(
+                    "SELECT COUNT(*) AS n FROM agent_turn_events WHERE user_id = :user_id "
+                    "AND created_at > NOW() - INTERVAL '24 hours'"
+                ),
+                {"user_id": user_id},
+            )
+        ).fetchone()
+        turns = int(row.n if row else 0)
+        retry_after: Optional[int] = None
+        if daily_limit > 0 and turns >= daily_limit:
+            freed = (
+                await db.execute(
+                    text(
+                        """
+                        SELECT GREATEST(1, CEIL(EXTRACT(EPOCH FROM (
+                            created_at + INTERVAL '24 hours' - NOW()
+                        ))))::INTEGER AS retry_after
+                        FROM agent_turn_events
+                        WHERE user_id = :user_id AND created_at > NOW() - INTERVAL '24 hours'
+                        ORDER BY created_at ASC
+                        OFFSET :offset LIMIT 1
+                        """
+                    ),
+                    {"user_id": user_id, "offset": turns - daily_limit},
+                )
+            ).fetchone()
+            retry_after = int(freed.retry_after) if freed and freed.retry_after is not None else 60
+    return {"turns": turns, "retry_after": retry_after}
 
 
 # ----------------------------------------------------------------------

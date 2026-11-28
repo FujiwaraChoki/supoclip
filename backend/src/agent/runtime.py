@@ -20,6 +20,7 @@ from . import events, store
 from .attachments import content_blocks, previews
 from .loop import Turn, declined_results, interrupted_results, unanswered_tool_uses
 from .prompt import context_block, notice_block
+from .rate_limit import TurnLimits, max_concurrent_turns
 
 logger = logging.getLogger(__name__)
 
@@ -121,14 +122,26 @@ async def start_user_turn(
     locale: Optional[str],
     page: Optional[str],
     first_name: Optional[str],
+    limits: Optional[TurnLimits] = None,
 ) -> dict:
     if _app is None:
         raise RuntimeError("Agent runtime is not started")
     conversation_id = conversation["id"]
-    results, cards = await _settle_open_turn(conversation_id)
-    run = await store.create_run(conversation_id, conversation["user_id"], "user")
+    run, declined = await store.create_user_run(
+        conversation_id,
+        conversation["user_id"],
+        limits=limits,
+        stale_seconds=STALE_RUN_SECONDS,
+    )
     if run is None:
         raise Busy()
+    if declined is not None:
+        results, cards = declined_results(declined.get("pending") or {})
+        await events.publish(conversation_id, "done", {"run_id": declined["id"], "status": "declined"})
+    else:
+        rows = await store.list_messages(conversation_id)
+        unanswered = unanswered_tool_uses(rows)
+        results, cards = interrupted_results(unanswered) if unanswered else ([], {})
     memories = [m["note"] for m in await store.list_memories(conversation["user_id"])]
     context = context_block(
         timezone_name=timezone_name, locale=locale, memories=memories, page=page, attachments=attachments,
@@ -152,7 +165,12 @@ async def start_user_turn(
 async def resume_approval(conversation: dict, run: dict, approved: bool, timezone_name: Optional[str]) -> bool:
     if _app is None:
         raise RuntimeError("Agent runtime is not started")
-    claimed = await store.claim_approval(run["id"])
+    claimed = await store.claim_approval(
+        run["id"],
+        user_id=conversation["user_id"],
+        max_concurrent=max_concurrent_turns(),
+        stale_seconds=STALE_RUN_SECONDS,
+    )
     if not claimed:
         return False
     turn = Turn(_app, claimed, conversation, timezone_name=timezone_name)
@@ -167,16 +185,20 @@ async def start_followup_turn(job: dict, text_value: str, notice: dict, *, timez
     conversation = await store.get_conversation(job["conversation_id"], job["user_id"])
     if conversation is None:
         return True  # The chat was deleted; nothing to wake.
-    try:
-        results, cards = await _settle_open_turn(conversation["id"])
-    except Busy:
-        return False
-    open_run = await store.open_run(conversation["id"])
-    if open_run:
-        return False
-    run = await store.create_run(conversation["id"], conversation["user_id"], "followup")
+    # Atomic: defers if the chat has any open run (including awaiting_approval)
+    # or if the user already has the maximum number of active turns elsewhere.
+    run = await store.create_run(
+        conversation["id"],
+        conversation["user_id"],
+        "followup",
+        max_concurrent=max_concurrent_turns(),
+        stale_seconds=STALE_RUN_SECONDS,
+    )
     if run is None:
         return False
+    rows = await store.list_messages(conversation["id"])
+    unanswered = unanswered_tool_uses(rows)
+    results, cards = interrupted_results(unanswered) if unanswered else ([], {})
     memories = [m["note"] for m in await store.list_memories(conversation["user_id"])]
     context = context_block(timezone_name=timezone_name, locale=None, memories=memories)
     content = [*results, {"type": "text", "text": context}, {"type": "text", "text": notice_block(text_value)}]

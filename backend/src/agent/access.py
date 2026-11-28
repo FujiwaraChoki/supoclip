@@ -25,18 +25,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import feature_flags
 from ..services.billing_service import BillingService, grants_paid_access
 from .loop import agent_configured
+from .rate_limit import daily_turn_limit
 
-DEFAULT_DAILY_TURNS = 150
 DEFAULT_TRIAL_MESSAGES = 5
 DEFAULT_ONBOARDING_SINCE = "2026-11-24T00:00:00+00:00"
 FULL_PLANS = {"scale", "team"}
-
-
-def daily_turn_limit() -> int:
-    try:
-        return max(1, int(os.getenv("AGENT_DAILY_TURN_LIMIT", str(DEFAULT_DAILY_TURNS))))
-    except ValueError:
-        return DEFAULT_DAILY_TURNS
 
 
 def trial_message_limit() -> int:
@@ -58,7 +51,7 @@ def onboarding_since() -> datetime:
 async def trial_messages_used(db: AsyncSession, user_id: str) -> int:
     row = (
         await db.execute(
-            text("SELECT COUNT(*) AS n FROM agent_runs WHERE user_id = :id AND trigger = 'user'"),
+            text("SELECT COUNT(*) AS n FROM agent_turn_events WHERE user_id = :id"),
             {"id": user_id},
         )
     ).fetchone()

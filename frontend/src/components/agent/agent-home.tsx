@@ -17,6 +17,7 @@ import { ClipCover } from "@/components/app/clip-cover";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSocialAccess } from "@/hooks/use-social-access";
 import { useSession } from "@/lib/auth-client";
+import { AgentLimitNote, useAgentLimit } from "@/components/agent/agent-limit";
 import { TrialNote, useAgentGate } from "@/components/agent/agent-upgrade";
 import { agentKeys, fetchConversations, startConversation, type Attachment, type CardPost } from "@/lib/agent";
 import { coverClipUrl, timeAgo } from "@/lib/generations";
@@ -136,8 +137,11 @@ export function AgentHome({ manualHref = "/?mode=manual" }: { manualHref?: strin
   );
 
   const gate = useAgentGate("agent_home");
+  const limit = useAgentLimit(gate.status, gate.refresh);
 
   const start = async (message: string, attachments: Attachment[]) => {
+    if (limit.blocksSend) return false;
+    limit.clearSoft();
     setStarting(true);
     try {
       const { conversation } = await startConversation(message, attachments, locale);
@@ -146,8 +150,15 @@ export function AgentHome({ manualHref = "/?mode=manual" }: { manualHref?: strin
       router.push(`/agent/${conversation.id}?new=1`);
       return true;
     } catch (error) {
-      if (!gate.handleError(error)) toast.error(error instanceof Error ? error.message : t("errors.send"));
       setStarting(false);
+      // A limit is explained under the composer (the draft stays); a plan gate opens the upgrade dialog.
+      const hit = limit.report(error);
+      if (hit) {
+        // The status then carries the daily cap for every other screen too.
+        if (hit.kind === "daily") void gate.refresh();
+        return false;
+      }
+      if (!gate.handleError(error)) toast.error(error instanceof Error ? error.message : t("errors.send"));
       return false;
     }
   };
@@ -171,8 +182,20 @@ export function AgentHome({ manualHref = "/?mode=manual" }: { manualHref?: strin
           </motion.div>
 
           <motion.div data-tour="agent-composer" onFocusCapture={() => setListening(true)} onBlurCapture={() => setListening(false)} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.05, ease: [0.16, 1, 0.3, 1] }} className="mt-8">
-            <AgentComposer onSend={start} disabled={starting} autoFocus size="large" seed={seed} placeholder={t("composer.placeholderHome")} />
-            <TrialNote status={gate.status} onUpgrade={gate.show} className="mt-3" />
+            <AgentComposer
+              onSend={start}
+              disabled={starting || limit.daily}
+              sendBlocked={limit.blocksSend}
+              autoFocus
+              size="large"
+              seed={seed}
+              placeholder={limit.daily ? t("limit.placeholder") : t("composer.placeholderHome")}
+            />
+            {limit.kind ? (
+              <AgentLimitNote kind={limit.kind} remaining={limit.remaining} className="mt-3" />
+            ) : (
+              <TrialNote status={gate.status} onUpgrade={gate.show} className="mt-3" />
+            )}
           </motion.div>
 
           <motion.div
@@ -183,7 +206,7 @@ export function AgentHome({ manualHref = "/?mode=manual" }: { manualHref?: strin
             className="-mx-4 mt-4 flex snap-x gap-2.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 sm:pb-0"
           >
             {suggestions.map((suggestion) => (
-              <SuggestionCard key={suggestion.id} suggestion={suggestion} disabled={starting} onPick={() => pick(suggestion)} />
+              <SuggestionCard key={suggestion.id} suggestion={suggestion} disabled={starting || limit.blocksSend} onPick={() => pick(suggestion)} />
             ))}
           </motion.div>
 

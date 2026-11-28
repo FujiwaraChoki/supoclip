@@ -451,5 +451,19 @@
     "locked": "Agent 包含在 Creator 方案中。",
     "used": "免费消息已用完。",
     "cta": "升级 Creator"
+  },
+  "limit": {
+    "daily": "已达每日上限",
+    "resetsIn": "约 {time}后重置",
+    "resetsWithin": "24 小时内重置",
+    "tooFast": "发送太快了",
+    "tryAgainIn": "{time}后再试",
+    "concurrent": "请等其他对话中的回复完成后再开始新的",
+    "placeholder": "每日上限重置后即可继续",
+    "units": {
+      "hours": "{count} 小时",
+      "minutes": "{count} 分钟",
+      "seconds": "{count} 秒"
+    }
   }
 }

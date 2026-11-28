@@ -19,6 +19,10 @@ export interface AgentStatus {
   offer_choice?: boolean;
   model: string | null;
   daily_limit: number;
+  /** User-started turns in the rolling 24 hours (older servers leave it out). */
+  turns_today?: number;
+  /** Seconds until a turn frees up once `daily_limit` is reached, else null. */
+  daily_retry_after?: number | null;
 }
 
 /** The agent is part of the product for this account (it may still need Creator to use). */
@@ -138,19 +142,76 @@ export const agentKeys = {
   conversation: (id: string) => ["agent", "conversation", id] as const,
 };
 
+/** An `/api/agent/*` failure: the HTTP status, the backend's code, and how long to wait (429s). */
+export type AgentRequestError = Error & { status: number; code?: string; retryAfter?: number };
+
+/** Seconds from a `Retry-After` header: delta-seconds or an HTTP date. */
+export function parseRetryAfter(value: string | null | undefined, now = Date.now()): number | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  if (/^\d+$/.test(trimmed)) return Math.max(1, Number(trimmed));
+  const at = Date.parse(trimmed);
+  if (Number.isNaN(at)) return undefined;
+  return Math.max(1, Math.ceil((at - now) / 1000));
+}
+
+export async function agentRequestError(response: Response): Promise<AgentRequestError> {
+  let message = `Request failed (${response.status})`;
+  let code: string | undefined;
+  let retryAfter: number | undefined;
+  try {
+    const body = await response.json();
+    const detail = body?.detail ?? body;
+    if (typeof detail === "string") message = detail;
+    else if (detail?.message) {
+      message = detail.message;
+      code = detail.code;
+      const seconds = Number(detail.retry_after);
+      if (Number.isFinite(seconds) && seconds > 0) retryAfter = Math.ceil(seconds);
+    }
+  } catch { /* keep the status message */ }
+  retryAfter ??= parseRetryAfter(response.headers.get("retry-after"));
+  return Object.assign(new Error(message), { status: response.status, code, retryAfter });
+}
+
 async function json<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    let message = `Request failed (${response.status})`;
-    let code: string | undefined;
-    try {
-      const body = await response.json();
-      const detail = body?.detail ?? body;
-      if (typeof detail === "string") message = detail;
-      else if (detail?.message) { message = detail.message; code = detail.code; }
-    } catch { /* keep the status message */ }
-    throw Object.assign(new Error(message), { status: response.status, code });
-  }
+  if (!response.ok) throw await agentRequestError(response);
   return (await response.json()) as T;
+}
+
+export type AgentLimitKind = "daily" | "burst" | "concurrent";
+
+/** A limit the composer explains in place: which one, and seconds until it lifts (when known). */
+export interface AgentLimit {
+  kind: AgentLimitKind;
+  retryAfter: number | null;
+}
+
+/** Turns a 429 from the agent into the limit it hit; anything else is not a limit (null). */
+export function agentLimitFromError(error: unknown): AgentLimit | null {
+  const { status, code, retryAfter } = (error ?? {}) as Partial<AgentRequestError>;
+  if (status !== 429) return null;
+  const seconds = typeof retryAfter === "number" && retryAfter > 0 ? Math.ceil(retryAfter) : null;
+  if (code === "AGENT_DAILY_LIMIT") return { kind: "daily", retryAfter: seconds };
+  if (code === "AGENT_CONCURRENT_LIMIT") return { kind: "concurrent", retryAfter: seconds };
+  // AGENT_RATE_LIMITED, and any other 429 (a proxy, too many streams): wait and try again.
+  return { kind: "burst", retryAfter: seconds ?? 10 };
+}
+
+/** The daily cap from `/agent/status`, so a reload at the limit shows it before anyone sends. */
+export function agentLimitFromStatus(status: AgentStatus | null | undefined): AgentLimit | null {
+  if (!status?.available) return null;
+  const seconds = status.daily_retry_after;
+  if (typeof seconds === "number" && seconds > 0) return { kind: "daily", retryAfter: Math.ceil(seconds) };
+  return null;
+}
+
+/** How long until a limit lifts, rounded for a quiet note: whole hours, then minutes, then seconds. */
+export function waitParts(seconds: number): { unit: "hours" | "minutes" | "seconds"; count: number } {
+  const s = Math.max(0, Math.ceil(seconds));
+  if (s >= 3600) return { unit: "hours", count: Math.round(s / 3600) };
+  if (s >= 60) return { unit: "minutes", count: Math.ceil(s / 60) };
+  return { unit: "seconds", count: Math.max(1, s) };
 }
 
 export async function fetchAgentStatus(): Promise<AgentStatus | null> {

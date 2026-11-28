@@ -17,6 +17,7 @@ import { ApprovalCard, OptionsCard, ToolCard } from "@/components/agent/agent-ca
 import { AgentMarkdown } from "@/components/agent/markdown";
 import { formatSize } from "@/lib/agent-attachments";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AgentLimitNote, useAgentLimit } from "@/components/agent/agent-limit";
 import { TrialNote, useAgentGate } from "@/components/agent/agent-upgrade";
 import {
   agentKeys, answerApproval, answeredReply, fetchConversation, sendMessage, stopConversation,
@@ -345,6 +346,7 @@ export function AgentChat({ conversationId, freshlyStarted }: { conversationId: 
       status: fresh.run?.status === "awaiting_approval" ? "awaiting_approval" : fresh.run ? "running" : "idle",
       approval: fresh.run?.status === "awaiting_approval" ? fresh.run.pending?.items ?? null : null,
       jobs: fresh.jobs,
+      ...(fresh.partial?.text ? { partial: fresh.partial.text } : {}),
     });
     void queryClient.invalidateQueries({ queryKey: agentKeys.conversations });
     return fresh;
@@ -367,12 +369,18 @@ export function AgentChat({ conversationId, freshlyStarted }: { conversationId: 
   }, [data, freshlyStarted]);
 
   // One event stream per open conversation; the browser resumes it with Last-Event-ID.
+  // On non-200 HTTP responses (e.g. 429 too many tabs) the browser closes EventSource
+  // permanently, so back off, refresh the transcript, and reconnect instead of hanging.
   const streamReady = data !== undefined;
   useEffect(() => {
     if (!streamReady) return;
-    const after = cursor.current ?? "$";
-    const source = new EventSource(`/api/agent/conversations/${conversationId}/events?after=${encodeURIComponent(after)}`);
+    let active = true;
+    let source: EventSource | null = null;
+    let retryTimer: number | null = null;
+    let attempt = 0;
+
     const handle = (event: MessageEvent) => {
+      attempt = 0;
       let payload: Record<string, unknown> = {};
       try { payload = JSON.parse(event.data); } catch { /* ignore */ }
       if (event.lastEventId) cursor.current = event.lastEventId;
@@ -385,10 +393,46 @@ export function AgentChat({ conversationId, freshlyStarted }: { conversationId: 
         void reload().catch(() => {});
       }
     };
-    for (const name of ["run", "text", "tool_start", "tool_end", "approval", "done", "error", "job", "notice"]) {
-      source.addEventListener(name, handle as EventListener);
-    }
-    return () => source.close();
+
+    const connect = () => {
+      if (!active) return;
+      const after = cursor.current ?? "$";
+      const next = new EventSource(`/api/agent/conversations/${conversationId}/events?after=${encodeURIComponent(after)}`);
+      source = next;
+      next.onopen = () => { attempt = 0; };
+      next.onerror = () => {
+        if (!active || source !== next) return;
+        if (next.readyState === EventSource.CLOSED) {
+          next.close();
+          source = null;
+          const delay = Math.min(30_000, 2_000 * 2 ** Math.min(attempt, 4));
+          attempt += 1;
+          void reload()
+            .then((fresh) => {
+              if (!active) return;
+              cursor.current = fresh.partial?.event_id ?? fresh.last_event_id;
+              retryTimer = window.setTimeout(connect, delay);
+            })
+            .catch((err: unknown) => {
+              if (!active) return;
+              const status = (err as { status?: number } | null)?.status;
+              // Stop reconnecting on permanent 4xx errors (deleted chat, signed out, plan locked).
+              if (status && status >= 400 && status < 500 && status !== 429) return;
+              retryTimer = window.setTimeout(connect, delay);
+            });
+        }
+      };
+      for (const name of ["run", "text", "tool_start", "tool_end", "approval", "done", "error", "job", "notice"]) {
+        next.addEventListener(name, handle as EventListener);
+      }
+    };
+
+    connect();
+    return () => {
+      active = false;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      source?.close();
+    };
   }, [conversationId, streamReady, reload]);
 
   const items = useMemo(() => data?.items ?? [], [data]);
@@ -414,32 +458,50 @@ export function AgentChat({ conversationId, freshlyStarted }: { conversationId: 
   const gate = useAgentGate("agent_chat");
   const { handleError: handleGateError, refresh: refreshGate } = gate;
   const onTrial = gate.status?.access === "trial";
+  const limit = useAgentLimit(gate.status, refreshGate);
+  const { report: reportLimit, clearSoft: clearSoftLimit, blocksSend: limitBlocksSend } = limit;
 
   const send = useCallback(async (message: string, attachments: Attachment[]) => {
+    if (limitBlocksSend) return false;
+    clearSoftLimit();
+    scrollerPinned.current = true;
+    const shownBefore = queryClient.getQueryData<AgentConversation>(agentKeys.conversation(conversationId))?.items.length ?? 0;
     try {
-      // Shown at once; the transcript replaces it when the turn is saved.
-      queryClient.setQueryData<AgentConversation>(agentKeys.conversation(conversationId), (current) => current && ({
-        ...current,
-        items: [...current.items, { type: "user", id: `pending-${Date.now()}`, text: message, attachments: attachments.map((a) => ({ name: a.name, kind: a.kind, preview: a.kind === "image" ? a.preview : null, size: a.kind === "video" ? null : a.size })), created_at: new Date().toISOString() }],
-      }));
-      dispatch({ type: "running" });
-      scrollerPinned.current = true;
       await sendMessage(conversationId, message, attachments, locale);
-      if (onTrial) void refreshGate();
-      return true;
     } catch (error) {
-      void reload().catch(() => {});
+      // Nothing was shown yet, so a refusal leaves the chat as it was and the draft in the composer.
+      const hit = reportLimit(error);
+      if (hit) {
+        if (hit.kind === "daily") void refreshGate();
+        return false;
+      }
       if (!handleGateError(error)) toast.error(error instanceof Error ? error.message : t("errors.send"));
+      void reload().catch(() => {});
       return false;
     }
-  }, [conversationId, handleGateError, locale, onTrial, queryClient, refreshGate, reload, t]);
+    // Accepted: show the message and the reply starting; the transcript replaces it when the turn is saved.
+    queryClient.setQueryData<AgentConversation>(agentKeys.conversation(conversationId), (current) => {
+      if (!current) return current;
+      // The saved transcript already arrived (a very quick reply reloaded it): don't add it twice.
+      if (current.items.slice(shownBefore).some((item) => item.type === "user" && item.text === message)) return current;
+      return {
+        ...current,
+        items: [...current.items, { type: "user", id: `pending-${Date.now()}`, text: message, attachments: attachments.map((a) => ({ name: a.name, kind: a.kind, preview: a.kind === "image" ? a.preview : null, size: a.kind === "video" ? null : a.size })), created_at: new Date().toISOString() }],
+      };
+    });
+    dispatch({ type: "running" });
+    if (onTrial) void refreshGate();
+    return true;
+  }, [clearSoftLimit, conversationId, handleGateError, limitBlocksSend, locale, onTrial, queryClient, refreshGate, reload, reportLimit, t]);
 
   const answer = async (approved: boolean) => {
     setAnswering(true);
+    clearSoftLimit();
     try {
       await answerApproval(conversationId, approved, data?.run?.id);
       dispatch({ type: "running" });
     } catch (error) {
+      if (reportLimit(error)) return;
       if (!gate.handleError(error)) toast.error(error instanceof Error ? error.message : t("errors.send"));
       void reload();
     } finally {
@@ -482,7 +544,7 @@ export function AgentChat({ conversationId, freshlyStarted }: { conversationId: 
                       jobs={live.jobs}
                       mood={index === shown.length - 1 ? lastMood : "idle"}
                       items={items}
-                      replyDisabled={running}
+                      replyDisabled={running || limit.blocksSend}
                       onReply={(reply) => void send(reply, [])}
                     />
                   )}
@@ -510,10 +572,17 @@ export function AgentChat({ conversationId, freshlyStarted }: { conversationId: 
             onStop={() => { void stopConversation(conversationId).then(() => reload()).catch(() => {}); }}
             running={running}
             // Without Creator the chat stays readable; only new messages need the plan.
-            disabled={gate.locked && !running}
-            placeholder={gate.locked ? t("composer.placeholderLocked") : pendingApproval ? t("composer.placeholderApproval") : t("composer.placeholderReply")}
+            disabled={(gate.locked || limit.daily) && !running}
+            sendBlocked={limit.blocksSend}
+            placeholder={
+              gate.locked ? t("composer.placeholderLocked")
+                : limit.daily ? t("limit.placeholder")
+                  : pendingApproval ? t("composer.placeholderApproval") : t("composer.placeholderReply")
+            }
           />
-          {gate.status?.access === "trial" || gate.locked ? (
+          {limit.kind && !gate.locked ? (
+            <AgentLimitNote kind={limit.kind} remaining={limit.remaining} className="mt-2" />
+          ) : gate.status?.access === "trial" || gate.locked ? (
             <TrialNote status={gate.status} onUpgrade={gate.show} className="mt-2" />
           ) : (
             <p className="mt-2 hidden text-center text-[11px] text-muted-foreground sm:block">{t("composer.disclaimer")}</p>

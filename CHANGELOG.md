@@ -6,6 +6,8 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-28
 
+- **Improved:** When you hit an Agent limit, a quiet line under the message box says which one and when it lifts: the daily limit shows when it resets and pauses the box until then, sending too quickly counts down a few seconds before Send works again, and a reply still running in another chat is explained without a pop-up. Your draft stays in the box. ([#605](https://github.com/FujiwaraChoki/supoclip/pull/605))
+- **Under the hood:** Agent chat now enforces burst, concurrency, and live-connection rate limits alongside the daily cap, keeps turn and trial counts durable when chats are deleted, and automatically reconnects live chat updates after transient rate-limit responses. ([#605](https://github.com/FujiwaraChoki/supoclip/pull/605))
 - **Improved:** The Black Friday sale covers both billing periods: 40% off the first year on yearly Pro and Creator, and 40% off the first 3 months on monthly. Pricing opens on yearly while the sale runs. ([#602](https://github.com/FujiwaraChoki/supoclip/pull/602), [#603](https://github.com/FujiwaraChoki/supoclip/pull/603))
 - **Improved:** Clip generation renders roughly 3× faster end-to-end with the same visual quality. Rendering now bounds encoder threads to prevent CPU contention, avoids redundant re-encoding on 720p plans, runs caption detection and layout checks in parallel, and renders multiple clips of a video at the same time. ([#597](https://github.com/FujiwaraChoki/supoclip/pull/597))
 

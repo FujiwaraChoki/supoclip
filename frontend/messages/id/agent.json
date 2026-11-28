@@ -451,5 +451,19 @@
     "locked": "Agent termasuk dalam Creator.",
     "used": "Pesan gratismu sudah habis.",
     "cta": "Dapatkan Creator"
+  },
+  "limit": {
+    "daily": "Batas harian tercapai",
+    "resetsIn": "Direset dalam ~{time}",
+    "resetsWithin": "Direset dalam 24 jam",
+    "tooFast": "Terlalu cepat",
+    "tryAgainIn": "Coba lagi dalam {time}",
+    "concurrent": "Tunggu balasan di chat lain selesai sebelum memulai yang baru",
+    "placeholder": "Kembali setelah batas harianmu direset",
+    "units": {
+      "hours": "{count} jam",
+      "minutes": "{count} mnt",
+      "seconds": "{count} dtk"
+    }
   }
 }

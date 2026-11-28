@@ -6,7 +6,7 @@ import { getServerSession } from "@/server/session";
 // Authenticated proxy for the agent home screen (/agent/* on the backend). Responses
 // are streamed through unchanged, so the conversation's SSE event stream works too.
 const SAFE_PATH_SEGMENT = /^[A-Za-z0-9_-]+$/;
-const FORWARDED = ["content-type", "cache-control", "x-trace-id"] as const;
+const FORWARDED = ["content-type", "cache-control", "x-trace-id", "retry-after"] as const;
 
 async function proxyAgentRequest(request: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const session = await getServerSession();

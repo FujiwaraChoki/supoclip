@@ -451,5 +451,19 @@
     "locked": "Agent forma parte de Creator.",
     "used": "Ya usaste tus mensajes gratis.",
     "cta": "Obtener Creator"
+  },
+  "limit": {
+    "daily": "Límite diario alcanzado",
+    "resetsIn": "Se restablece en ~{time}",
+    "resetsWithin": "Se restablece en menos de 24 horas",
+    "tooFast": "Demasiado rápido",
+    "tryAgainIn": "Inténtalo de nuevo en {time}",
+    "concurrent": "Espera a que termine una respuesta en otro chat antes de empezar otra",
+    "placeholder": "Vuelve cuando se restablezca tu límite diario",
+    "units": {
+      "hours": "{count} h",
+      "minutes": "{count} min",
+      "seconds": "{count} s"
+    }
   }
 }

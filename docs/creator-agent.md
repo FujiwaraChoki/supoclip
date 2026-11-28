@@ -9,19 +9,30 @@ scheduled, publishing, published and failed post on one month or week grid.
 - **Hosted, full access:** Creator (`scale`) and Team plans while paid (the plans that may schedule posts), plus
   admins. Checked on every message, not only when home loads (`agent/access.py`).
 - **Pro trial:** paid Pro accounts get `AGENT_TRIAL_MESSAGES` (default 5) messages they start, counted over the
-  account's lifetime (`agent_runs` with `trigger = 'user'`). Follow-ups never count, and approving an action on
-  the last free turn still works. After that, `reason` is `trial_used` and sending answers 402
-  `AGENT_TRIAL_USED`.
+  account's lifetime from the durable `agent_turn_events` ledger (deleting chats never resets it). Follow-ups
+  never count, and approving an action on the last free turn still works. After that, `reason` is `trial_used`
+  and sending answers 402 `AGENT_TRIAL_USED`.
 - **Free, or Pro after the trial:** the agent stays visible but locked (`reason: plan`, 402 `AGENT_PLAN`). Every
   place that would start a turn opens the upgrade dialog with the `agent` reason instead (Creator preselected,
   the onboarding film as its picture). Old chats stay readable; the composer is disabled.
 - **Self-hosted:** everyone (monetization off).
 - **Feature flag `creator_agent`:** seeded on for web, off for iOS. Off shows everyone the create form.
-- **Needs** `ANTHROPIC_API_KEY` (env or the admin runtime settings). `AGENT_MODEL` (default `claude-sonnet-5-5`),
-  `AGENT_DAILY_TURN_LIMIT` (default 150 person-started turns per rolling 24 hours).
+- **Needs** `ANTHROPIC_API_KEY` (env or the admin runtime settings). `AGENT_MODEL` (default `claude-sonnet-5-5`).
+- **Rate and concurrency limits (`agent/rate_limit.py`):**
+  - `AGENT_DAILY_TURN_LIMIT` (default 150 user-started turns per rolling 24 hours, 429 `AGENT_DAILY_LIMIT`).
+  - `AGENT_BURST_TURN_LIMIT` / `AGENT_BURST_WINDOW_SECONDS` (default 10 user-started turns per rolling 60 seconds, 429 `AGENT_RATE_LIMITED`).
+  - `AGENT_MAX_CONCURRENT_TURNS` (default 2 active `queued`/`running` turns across all of a user's chats, 429 `AGENT_CONCURRENT_LIMIT`; follow-ups defer until a slot frees up).
+  - Turn limits and Pro trial counts are enforced atomically under a per-user PostgreSQL advisory lock against `agent_turn_events`, so deleting conversations or racing requests across chats cannot bypass them.
+  - Per-user Redis endpoint limits (`AGENT_REQUEST_RATE_LIMIT`, default 120 reads/60 s; `AGENT_WRITE_RATE_LIMIT`, default 30 writes/60 s) and concurrent SSE stream cap (`AGENT_MAX_SSE_STREAMS`, default 6, 429 `AGENT_TOO_MANY_STREAMS`). All 429 responses include `Retry-After`.
+
+  - Limit 429s carry `detail: {code, message, retry_after}`. The web and iOS composers show one quiet line
+    instead of a toast: the daily cap disables the composer with "Resets in ~Xh", a burst counts `retry_after`
+    down with Send paused, and the concurrent cap explains itself without blocking. The draft is kept.
 
 `GET /agent/status` returns `available`, `reason`, `access` (`full` | `trial`), `trial` (`{limit, used}`),
-`plan`, `home_mode` and `offer_choice`.
+`plan`, `home_mode`, `offer_choice`, `daily_limit`, `turns_today` (rolling 24 hours) and `daily_retry_after`
+(seconds until a turn frees up once `turns_today` reaches `daily_limit`, else `null`), so a page opened at
+the cap shows it before anyone sends.
 
 ## Home screen choice
 
@@ -132,7 +143,8 @@ the gaps.
 
 ## Data
 
-`agent_conversations`, `agent_messages`, `agent_runs`, `agent_jobs`, `agent_memories`
-(`backend/src/migrations/sql/20261123_0001_creator_agent.sql`). Conversations are private to the person who
+`agent_conversations`, `agent_messages`, `agent_runs`, `agent_turn_events`, `agent_jobs`, `agent_memories`
+(`backend/src/migrations/sql/20261123_0001_creator_agent.sql`,
+`backend/src/migrations/sql/20261128_0001_agent_turn_events.sql`). Conversations are private to the person who
 started them, also in a team workspace, and listed per workspace. Memories are short notes the agent keeps
 only when asked; Settings shows and deletes them.

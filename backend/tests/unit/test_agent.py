@@ -412,3 +412,215 @@ def test_attachments_refuse_bad_or_oversized_files():
     png = base64.b64encode(b"png").decode()
     parsed = parse_attachments([{"kind": "image", "name": "a.png", "media_type": "image/png", "data": png, "preview": "javascript:alert(1)"}])
     assert parsed[0]["preview"] is None
+
+
+# ----------------------------------------------------------------------
+# Rate limiting
+# ----------------------------------------------------------------------
+class _FakeRateRedis:
+    def __init__(self) -> None:
+        self.counts: dict[str, int] = {}
+        self.ttls: dict[str, int] = {}
+        self.zsets: dict[str, dict[str, float]] = {}
+
+    async def eval(self, script: str, numkeys: int, *args):
+        key = str(args[0])
+        if "INCR" in script:
+            window = int(args[1])
+            self.counts[key] = self.counts.get(key, 0) + 1
+            if self.counts[key] == 1 or self.ttls.get(key, -1) < 0:
+                self.ttls[key] = window
+            return self.counts[key]
+        now, ttl, limit, member = float(args[1]), int(args[2]), int(args[3]), str(args[4])
+        zset = {m: score for m, score in self.zsets.get(key, {}).items() if score > now}
+        if len(zset) >= limit:
+            self.zsets[key] = zset
+            return 0
+        zset[member] = now + ttl
+        self.zsets[key] = zset
+        self.ttls[key] = ttl + 30
+        return 1
+
+    async def zadd(self, key: str, mapping: dict[str, float]):
+        zset = self.zsets.setdefault(key, {})
+        zset.update(mapping)
+
+    async def zrem(self, key: str, member: str):
+        if key in self.zsets:
+            self.zsets[key].pop(member, None)
+
+    async def expire(self, key: str, seconds: int):
+        self.ttls[key] = int(seconds)
+
+
+@pytest.mark.asyncio
+async def test_endpoint_rate_limit_counts_and_blocks_in_redis(monkeypatch):
+    from src.agent import rate_limit
+
+    fake = _FakeRateRedis()
+    monkeypatch.setattr(rate_limit.JobQueue, "get_pool", AsyncMock(return_value=fake))
+    monkeypatch.setenv("AGENT_WRITE_RATE_LIMIT", "2")
+    monkeypatch.setenv("AGENT_WRITE_WINDOW_SECONDS", "60")
+    monkeypatch.setenv("AGENT_REQUEST_RATE_LIMIT", "3")
+
+    await rate_limit.enforce_endpoint_limit("user-a", write=True)
+    await rate_limit.enforce_endpoint_limit("user-a", write=True)
+    with pytest.raises(rate_limit.RequestRateLimited) as exc_info:
+        await rate_limit.enforce_endpoint_limit("user-a", write=True)
+    http_exc = exc_info.value.to_http_exception()
+    assert http_exc.status_code == 429
+    assert http_exc.detail["code"] == "AGENT_RATE_LIMITED"
+    assert int(http_exc.headers["Retry-After"]) >= 1
+
+    # Read bucket and other users remain independent.
+    await rate_limit.enforce_endpoint_limit("user-a", write=False)
+    await rate_limit.enforce_endpoint_limit("user-b", write=True)
+
+
+@pytest.mark.asyncio
+async def test_endpoint_rate_limit_fails_open_when_redis_errors(monkeypatch):
+    from src.agent import rate_limit
+
+    monkeypatch.setattr(rate_limit.JobQueue, "get_pool", AsyncMock(side_effect=RuntimeError("redis down")))
+    allowed, retry_after = await rate_limit.hit_endpoint_limit("read", "user-a", limit=1, window_seconds=60)
+    assert allowed is True and retry_after == 0
+
+
+@pytest.mark.asyncio
+async def test_sse_slot_cap_release_and_expiry(monkeypatch):
+    from src.agent import rate_limit
+
+    rate_limit.reset_local_state()
+    monkeypatch.setenv("AGENT_MAX_SSE_STREAMS", "2")
+
+    # Redis-backed path
+    fake = _FakeRateRedis()
+    monkeypatch.setattr(rate_limit.JobQueue, "get_pool", AsyncMock(return_value=fake))
+    s1 = await rate_limit.acquire_sse_slot("user-a")
+    s2 = await rate_limit.acquire_sse_slot("user-a")
+    with pytest.raises(rate_limit.TooManyStreamsError):
+        await rate_limit.acquire_sse_slot("user-a")
+    await rate_limit.refresh_sse_slot("user-a", s1)
+    await rate_limit.release_sse_slot("user-a", s1)
+    s3 = await rate_limit.acquire_sse_slot("user-a")
+    await rate_limit.release_sse_slot("user-a", s2)
+    await rate_limit.release_sse_slot("user-a", s3)
+
+    # Local fallback path when Redis is unavailable
+    monkeypatch.setattr(rate_limit.JobQueue, "get_pool", AsyncMock(side_effect=RuntimeError("redis down")))
+    now = 1_700_000_000.0
+    monkeypatch.setattr(rate_limit.time, "time", lambda: now)
+    l1 = await rate_limit.acquire_sse_slot("user-local")
+    l2 = await rate_limit.acquire_sse_slot("user-local")
+    with pytest.raises(rate_limit.TooManyStreamsError):
+        await rate_limit.acquire_sse_slot("user-local")
+    # Expired slots are pruned automatically.
+    monkeypatch.setattr(rate_limit.time, "time", lambda: now + rate_limit.SSE_SLOT_TTL_SECONDS + 1)
+    l3 = await rate_limit.acquire_sse_slot("user-local")
+    await rate_limit.release_sse_slot("user-local", l3)
+    assert l1 != l2
+    rate_limit.reset_local_state()
+
+
+def test_env_limit_helpers_clamp_invalid_values(monkeypatch):
+    from src.agent import rate_limit
+
+    monkeypatch.setenv("AGENT_DAILY_TURN_LIMIT", "not-a-number")
+    monkeypatch.setenv("AGENT_BURST_TURN_LIMIT", "0")
+    monkeypatch.setenv("AGENT_MAX_CONCURRENT_TURNS", "-5")
+    assert rate_limit.daily_turn_limit() == rate_limit.DEFAULT_DAILY_TURNS
+    assert rate_limit.burst_turn_limit() == 1
+    assert rate_limit.max_concurrent_turns() == 1
+
+
+@pytest.mark.asyncio
+async def test_sse_slot_release_succeeds_under_anyio_cancellation(monkeypatch):
+    import asyncio
+    import anyio
+    from src.agent import rate_limit
+
+    fake = _FakeRateRedis()
+
+    async def yielding_zrem(key: str, member: str):
+        await asyncio.sleep(0)
+        if key in fake.zsets:
+            fake.zsets[key].pop(member, None)
+
+    fake.zrem = yielding_zrem  # type: ignore[method-assign]
+    monkeypatch.setattr(rate_limit.JobQueue, "get_pool", AsyncMock(return_value=fake))
+    monkeypatch.setenv("AGENT_MAX_SSE_STREAMS", "1")
+
+    slot = await rate_limit.acquire_sse_slot("user-cancel")
+    assert len(fake.zsets["agent:sse:user-cancel"]) == 1
+
+    with anyio.CancelScope() as scope:
+        try:
+            scope.cancel()
+            await anyio.sleep(0)
+        finally:
+            await rate_limit.release_sse_slot("user-cancel", slot)
+
+    assert fake.zsets["agent:sse:user-cancel"] == {}
+    # A fresh connection succeeds immediately after disconnect.
+    next_slot = await rate_limit.acquire_sse_slot("user-cancel")
+    await rate_limit.release_sse_slot("user-cancel", next_slot)
+
+
+@pytest.mark.asyncio
+async def test_max_model_calls_persists_across_approval_resume(monkeypatch):
+    from src.agent import store
+
+    published: list[tuple[str, dict]] = []
+
+    monkeypatch.setattr(loop, "get_config", lambda: SimpleNamespace(anthropic_api_key="test-key"))
+    monkeypatch.setattr(store, "heartbeat", AsyncMock(return_value=False))
+    monkeypatch.setattr(store, "update_run", AsyncMock())
+    monkeypatch.setattr(loop.events, "publish", AsyncMock(side_effect=lambda _cid, ev, data: published.append((ev, data))))
+
+    turn = loop.Turn(
+        None,
+        {"id": "run-1", "usage": {"model_calls": loop.MAX_MODEL_CALLS}},
+        {"id": "conv-1", "user_id": "user-1", "team_id": None},
+        timezone_name="UTC",
+    )
+    called = False
+
+    async def fail_if_called(*_args, **_kwargs):
+        nonlocal called
+        called = True
+        raise AssertionError("_call_model should not be invoked when MAX_MODEL_CALLS is already reached")
+
+    monkeypatch.setattr(turn, "_call_model", fail_if_called)
+    await turn._loop()
+
+    assert called is False
+    assert any(ev == "notice" and data.get("text") == "step_limit" for ev, data in published)
+    assert any(ev == "done" and data.get("status") == "completed" for ev, data in published)
+
+
+@pytest.mark.asyncio
+async def test_status_route_reports_daily_usage_only_when_the_agent_is_available(monkeypatch):
+    from src.api.routes import agent as agent_routes
+
+    ctx = SimpleNamespace(user_id="user-1", team_id=None)
+    monkeypatch.setattr(agent_routes, "_ctx", AsyncMock(return_value=ctx))
+    monkeypatch.setattr(agent_routes, "_enforce_endpoint_limit", AsyncMock())
+    monkeypatch.setattr(agent_routes, "home_mode", AsyncMock(return_value="agent"))
+    monkeypatch.setattr(agent_routes, "offer_choice", AsyncMock(return_value=False))
+    monkeypatch.setattr(agent_routes, "agent_model", lambda: "model-x")
+    monkeypatch.setattr(agent_routes, "daily_turn_limit", lambda: 5)
+    usage = AsyncMock(return_value={"turns": 5, "retry_after": 3600})
+    monkeypatch.setattr(agent_routes.store, "daily_turn_usage", usage)
+    request = SimpleNamespace(headers={}, app=SimpleNamespace(state=SimpleNamespace()))
+    db = SimpleNamespace(close=AsyncMock())
+
+    monkeypatch.setattr(agent_routes, "agent_access", AsyncMock(return_value={"available": True, "reason": None}))
+    body = await agent_routes.status(request, db)
+    assert body["daily_limit"] == 5 and body["turns_today"] == 5 and body["daily_retry_after"] == 3600
+    usage.assert_awaited_once_with("user-1", 5)
+
+    usage.reset_mock()
+    monkeypatch.setattr(agent_routes, "agent_access", AsyncMock(return_value={"available": False, "reason": "plan"}))
+    body = await agent_routes.status(request, db)
+    assert body["turns_today"] == 0 and body["daily_retry_after"] is None
+    usage.assert_not_awaited()

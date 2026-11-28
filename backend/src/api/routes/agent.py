@@ -9,16 +9,18 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
-from ...agent import events, runtime, store, timeline
+from ...agent import events, rate_limit, runtime, store, timeline
 from ...agent.access import agent_access, daily_turn_limit, first_name, home_mode, offer_choice
 from ...agent.attachments import AttachmentError, parse_attachments
 from ...agent.loop import agent_model
+from ...agent.rate_limit import AgentLimitError, SSE_SLOT_REFRESH_SECONDS, TurnLimits
 from ...auth_headers import AuthContext, resolve_auth_context
 from ...config import get_config
 from ...database import get_db
@@ -36,12 +38,29 @@ async def _ctx(request: Request, db: AsyncSession) -> AuthContext:
     return await resolve_auth_context(request, db, get_config(), session_only=True)
 
 
-async def _require_access(request: Request, db: AsyncSession, ctx: AuthContext, *, finishing: bool = False) -> None:
+def _queue_adapter(request: Request) -> Any:
+    return getattr(getattr(request, "app", None), "state", None) and getattr(request.app.state, "queue_adapter", None)
+
+
+async def _enforce_endpoint_limit(request: Request, ctx: AuthContext, *, write: bool = False) -> None:
+    try:
+        await rate_limit.enforce_endpoint_limit(ctx.user_id, write=write, queue_adapter=_queue_adapter(request))
+    except AgentLimitError as exc:
+        raise exc.to_http_exception() from None
+
+
+def _turn_limits(access: dict) -> TurnLimits:
+    trial = access.get("trial") if access.get("access") == "trial" else None
+    trial_limit = int(trial["limit"]) if isinstance(trial, dict) and trial.get("limit") is not None else None
+    return TurnLimits.from_env(trial_limit=trial_limit, stale_run_seconds=runtime.STALE_RUN_SECONDS)
+
+
+async def _require_access(request: Request, db: AsyncSession, ctx: AuthContext, *, finishing: bool = False) -> dict:
     """``finishing``: the request continues a turn already counted (an approval), so a Pro trial
     that ran out on that very turn may still finish it."""
     access = await agent_access(db, ctx.user_id, ctx.team_id, client_platform(request))
     if finishing and access["reason"] == "trial_used":
-        return
+        return access
     if not access["available"]:
         messages = {
             "disabled": "The agent isn't available right now.",
@@ -53,6 +72,7 @@ async def _require_access(request: Request, db: AsyncSession, ctx: AuthContext, 
             status_code=402 if access["reason"] in {"plan", "trial_used"} else 403,
             detail={"code": f"AGENT_{(access['reason'] or 'unavailable').upper()}", "message": messages.get(access["reason"], "Unavailable.")},
         )
+    return access
 
 
 async def _conversation(conversation_id: str, ctx: AuthContext) -> dict:
@@ -105,16 +125,13 @@ def _parse_message_fields(payload: dict) -> dict:
     }
 
 
-async def _start(request: Request, db: AsyncSession, ctx: AuthContext, conversation: dict, fields: dict) -> dict:
-    if await store.turns_today(ctx.user_id) >= daily_turn_limit():
-        raise HTTPException(
-            429,
-            {"code": "AGENT_DAILY_LIMIT", "message": "You've reached today's agent limit. It resets within 24 hours."},
-        )
-    name = await first_name(db, ctx.user_id)
-    await db.close()
+async def _start(
+    conversation: dict, fields: dict, *, name: Optional[str], limits: TurnLimits
+) -> dict:
     try:
-        return await runtime.start_user_turn(conversation, first_name=name, **fields)
+        return await runtime.start_user_turn(conversation, first_name=name, limits=limits, **fields)
+    except AgentLimitError as exc:
+        raise exc.to_http_exception() from None
     except runtime.Busy:
         raise HTTPException(409, {"code": "AGENT_BUSY", "message": "Wait for the current reply to finish."}) from None
 
@@ -123,14 +140,28 @@ async def _start(request: Request, db: AsyncSession, ctx: AuthContext, conversat
 async def status(request: Request, db: AsyncSession = Depends(get_db)):
     """Whether the agent home is offered to the caller, and what they picked."""
     ctx = await _ctx(request, db)
+    await db.close()
+    await _enforce_endpoint_limit(request, ctx, write=False)
     access = await agent_access(db, ctx.user_id, ctx.team_id, client_platform(request))
     mode = await home_mode(db, ctx.user_id)
+    daily_limit = daily_turn_limit()
+    choice = await offer_choice(db, ctx.user_id, access, mode)
+    await db.close()
+    # Only an account that can send has a daily allowance to show (the composer's limit note).
+    usage = (
+        await store.daily_turn_usage(ctx.user_id, daily_limit)
+        if access["available"]
+        else {"turns": 0, "retry_after": None}
+    )
     return {
         **access,
         "home_mode": mode,
-        "offer_choice": await offer_choice(db, ctx.user_id, access, mode),
+        "offer_choice": choice,
         "model": agent_model() if access["available"] else None,
-        "daily_limit": daily_turn_limit(),
+        "daily_limit": daily_limit,
+        "turns_today": usage["turns"],
+        # Seconds until a turn frees up when the daily cap is reached, else null.
+        "daily_retry_after": usage["retry_after"],
     }
 
 
@@ -138,18 +169,28 @@ async def status(request: Request, db: AsyncSession = Depends(get_db)):
 async def list_conversations(request: Request, db: AsyncSession = Depends(get_db), limit: int = 30):
     ctx = await _ctx(request, db)
     await db.close()
+    await _enforce_endpoint_limit(request, ctx, write=False)
     return {"conversations": await store.list_conversations(ctx.user_id, ctx.team_id, limit)}
 
 
 @router.post("/conversations", status_code=201)
 async def create_conversation(request: Request, db: AsyncSession = Depends(get_db)):
     ctx = await _ctx(request, db)
-    await _require_access(request, db, ctx)
+    await db.close()
+    await _enforce_endpoint_limit(request, ctx, write=True)
+    access = await _require_access(request, db, ctx)
+    name = await first_name(db, ctx.user_id)
+    await db.close()
     fields = _message_fields(await _body(request))
+    limits = _turn_limits(access)
+    try:
+        await store.check_user_turn_limits(ctx.user_id, limits)
+    except AgentLimitError as exc:
+        raise exc.to_http_exception() from None
     conversation = await store.create_conversation(ctx.user_id, ctx.team_id, None)
     conversation["user_id"] = ctx.user_id
     try:
-        run = await _start(request, db, ctx, conversation, fields)
+        run = await _start(conversation, fields, name=name, limits=limits)
     except BaseException:
         # Nothing was said yet: don't leave an empty chat behind.
         await store.delete_conversation(conversation["id"], ctx.user_id)
@@ -161,6 +202,7 @@ async def create_conversation(request: Request, db: AsyncSession = Depends(get_d
 async def get_conversation(conversation_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     ctx = await _ctx(request, db)
     await db.close()
+    await _enforce_endpoint_limit(request, ctx, write=False)
     conversation = await _conversation(conversation_id, ctx)
     # The stream position first: an event written while the transcript loads is replayed, not lost.
     last_event_id = await events.latest_id(conversation_id)
@@ -197,6 +239,7 @@ async def get_conversation(conversation_id: str, request: Request, db: AsyncSess
 async def rename_conversation(conversation_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     ctx = await _ctx(request, db)
     await db.close()
+    await _enforce_endpoint_limit(request, ctx, write=True)
     await _conversation(conversation_id, ctx)
     payload = await _body(request)
     title = payload.get("title")
@@ -210,6 +253,7 @@ async def rename_conversation(conversation_id: str, request: Request, db: AsyncS
 async def delete_conversation(conversation_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     ctx = await _ctx(request, db)
     await db.close()
+    await _enforce_endpoint_limit(request, ctx, write=True)
     await _conversation(conversation_id, ctx)
     await runtime.request_stop(conversation_id)
     await store.delete_conversation(conversation_id, ctx.user_id)
@@ -219,16 +263,22 @@ async def delete_conversation(conversation_id: str, request: Request, db: AsyncS
 @router.post("/conversations/{conversation_id}/messages", status_code=202)
 async def send_message(conversation_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     ctx = await _ctx(request, db)
+    await db.close()
+    await _enforce_endpoint_limit(request, ctx, write=True)
+    access = await _require_access(request, db, ctx)
+    name = await first_name(db, ctx.user_id)
+    await db.close()
     conversation = await _conversation(conversation_id, ctx)
-    await _require_access(request, db, ctx)
     fields = _message_fields(await _body(request))
-    return {"run": await _start(request, db, ctx, conversation, fields)}
+    return {"run": await _start(conversation, fields, name=name, limits=_turn_limits(access))}
 
 
 @router.post("/conversations/{conversation_id}/stop")
 async def stop(conversation_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     ctx = await _ctx(request, db)
     await db.close()
+    # Stopping a running turn uses the higher read bucket so a write-limited user can still cancel.
+    await _enforce_endpoint_limit(request, ctx, write=False)
     await _conversation(conversation_id, ctx)
     return {"stopped": await runtime.request_stop(conversation_id)}
 
@@ -237,21 +287,27 @@ async def stop(conversation_id: str, request: Request, db: AsyncSession = Depend
 async def approval(conversation_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     """Approve or decline the actions the agent is waiting on (publish now, delete)."""
     ctx = await _ctx(request, db)
-    conversation = await _conversation(conversation_id, ctx)
+    await db.close()
+    await _enforce_endpoint_limit(request, ctx, write=True)
     payload = await _body(request)
     approved = payload.get("approved")
     if not isinstance(approved, bool):
         raise HTTPException(422, "approved must be true or false")
     if approved:
         await _require_access(request, db, ctx, finishing=True)
-    await db.close()
+        await db.close()
+    conversation = await _conversation(conversation_id, ctx)
     run = await store.open_run(conversation_id)
     if not run or run["status"] != "awaiting_approval" or (payload.get("run_id") and payload["run_id"] != run["id"]):
         raise HTTPException(409, {"code": "NOTHING_TO_APPROVE", "message": "There's nothing waiting for approval."})
     timezone_name = payload.get("timezone") if isinstance(payload.get("timezone"), str) else None
     if timezone_name and not _TIMEZONE.match(timezone_name):
         timezone_name = None
-    if not await runtime.resume_approval(conversation, run, approved, timezone_name):
+    try:
+        resumed = await runtime.resume_approval(conversation, run, approved, timezone_name)
+    except AgentLimitError as exc:
+        raise exc.to_http_exception() from None
+    if not resumed:
         raise HTTPException(409, {"code": "NOTHING_TO_APPROVE", "message": "That was already answered."})
     return {"ok": True}
 
@@ -260,6 +316,7 @@ async def approval(conversation_id: str, request: Request, db: AsyncSession = De
 async def cancel_job(job_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     ctx = await _ctx(request, db)
     await db.close()
+    await _enforce_endpoint_limit(request, ctx, write=True)
     if not re.fullmatch(r"[0-9a-f-]{36}", job_id):
         raise HTTPException(404, "Not found")
     if not await store.cancel_job(job_id, ctx.user_id):
@@ -274,21 +331,35 @@ async def stream_events(
     """SSE: everything that happens in the chat after ``after`` (or Last-Event-ID)."""
     ctx = await _ctx(request, db)
     await db.close()
+    await _enforce_endpoint_limit(request, ctx, write=False)
     await _conversation(conversation_id, ctx)
     cursor = request.headers.get("last-event-id") or after or "$"
     if cursor != "$" and not re.fullmatch(r"\d+-\d+", cursor):
         cursor = "$"
     if cursor == "$":
         cursor = await events.latest_id(conversation_id)
+    adapter = _queue_adapter(request)
+    try:
+        slot_id = await rate_limit.acquire_sse_slot(ctx.user_id, queue_adapter=adapter)
+    except AgentLimitError as exc:
+        raise exc.to_http_exception() from None
 
     async def generator():
-        async for event_id, event, data in events.listen(conversation_id, cursor):
-            if await request.is_disconnected():
-                return
-            if event == "ping":
-                yield {"event": "ping", "data": "{}"}
-                continue
-            yield {"id": event_id, "event": event, "data": json.dumps(data, default=str)}
+        last_refresh = time.monotonic()
+        try:
+            async for event_id, event, data in events.listen(conversation_id, cursor):
+                if await request.is_disconnected():
+                    return
+                now = time.monotonic()
+                if now - last_refresh >= SSE_SLOT_REFRESH_SECONDS:
+                    last_refresh = now
+                    await rate_limit.refresh_sse_slot(ctx.user_id, slot_id, queue_adapter=adapter)
+                if event == "ping":
+                    yield {"event": "ping", "data": "{}"}
+                    continue
+                yield {"id": event_id, "event": event, "data": json.dumps(data, default=str)}
+        finally:
+            await rate_limit.release_sse_slot(ctx.user_id, slot_id, queue_adapter=adapter)
 
     return EventSourceResponse(generator(), ping=20)
 
@@ -297,6 +368,7 @@ async def stream_events(
 async def list_memories(request: Request, db: AsyncSession = Depends(get_db)):
     ctx = await _ctx(request, db)
     await db.close()
+    await _enforce_endpoint_limit(request, ctx, write=False)
     return {"memories": await store.list_memories(ctx.user_id)}
 
 
@@ -304,6 +376,7 @@ async def list_memories(request: Request, db: AsyncSession = Depends(get_db)):
 async def delete_memory(memory_id: str, request: Request, db: AsyncSession = Depends(get_db)):
     ctx = await _ctx(request, db)
     await db.close()
+    await _enforce_endpoint_limit(request, ctx, write=True)
     if not await store.delete_memory(ctx.user_id, memory_id):
         raise HTTPException(404, "Not found")
     return {"ok": True}
