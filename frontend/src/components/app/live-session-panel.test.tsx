@@ -22,24 +22,20 @@ const SESSION: LiveSessionInfo = {
 };
 
 describe("LiveSessionPanel", () => {
-  it("lays the parts on the stream's timeline, linking the others, with the next batch to come", () => {
+  it("says the stream is being clipped and links the other parts", () => {
     render(<LiveSessionPanel taskId="task-2" session={SESSION} />);
     const panel = screen.getByTestId("live-session-panel");
-    expect(panel).toHaveTextContent("Auto-clipping SomeStreamer");
+    expect(panel).toHaveTextContent("Clipping SomeStreamer live · next part soon");
     const parts = within(panel).getByRole("list", { name: "Parts of this stream" });
-    expect(within(parts).getByRole("link", { name: "Part 1 · 33:10–1:33:10 · 6 clips" })).toHaveAttribute("href", "/tasks/task-1");
-    expect(within(parts).getByLabelText("Part 2 · 1:31:40–2:00:50 · working…")).toHaveAttribute("aria-current", "page");
-    expect(within(parts).getByLabelText("Next batch")).toBeInTheDocument();
-    expect(panel).toHaveTextContent("2 parts · 6 clips so far");
+    expect(within(parts).getByRole("link", { name: "Part 1" })).toHaveAttribute("href", "/tasks/task-1");
+    expect(within(parts).getByText("Part 2")).toHaveAttribute("aria-current", "page");
     expect(within(panel).getByRole("button", { name: "Stop" })).toBeEnabled();
   });
 
   it("says why a session ended and offers nothing to stop", () => {
     render(<LiveSessionPanel taskId="task-1" session={{ ...SESSION, status: "stopped", stop_reason: "minutes" }} />);
     const panel = screen.getByTestId("live-session-panel");
-    expect(panel).toHaveTextContent("Live clipping stopped");
-    expect(panel).toHaveTextContent("This month's video minutes ran out.");
+    expect(panel).toHaveTextContent("Clipped SomeStreamer live · out of minutes this month");
     expect(within(panel).queryByRole("button", { name: "Stop" })).not.toBeInTheDocument();
-    expect(within(panel).queryByLabelText("Next batch")).not.toBeInTheDocument();
   });
 });

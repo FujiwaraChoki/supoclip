@@ -536,36 +536,22 @@
   "agentTrialEnded": "Pesan Agent gratismu sudah habis.",
   "agentBackWithCreator": "Lanjutkan dengan Creator",
   "livePanel": {
+    "title": "{channel} sedang live",
     "windowLabel": "Seberapa banyak diklip",
-    "tooNew": "Stream ini baru mulai. Coba lagi sebentar lagi.",
-    "usage": "Memakai sekitar {minutes} menit video sekarang.",
-    "usageFollow": "Sekitar {minutes} menit sekarang, lalu hanya menit baru tiap batch.",
-    "locked": "Mengklip livestream adalah bagian dari paket Creator.",
-    "seeCreator": "Lihat Creator",
+    "wholeStream": "Semua",
+    "follow": "Terus klip setiap {interval}",
+    "locked": "Mengklip livestream adalah bagian dari Creator.",
     "cancel": "Batal",
+    "seeCreator": "Lihat Creator",
+    "submitOnce": "Klip {duration} terakhir",
+    "submitAll": "Klip semuanya",
     "submitFollow": "Mulai klip live",
+    "tooNew": "Stream ini baru mulai. Coba lagi sebentar lagi.",
     "platforms": {
       "youtube": "Stream YouTube ini",
       "twitch": "Stream Twitch ini",
       "kick": "Stream Kick ini"
-    },
-    "live": "Live",
-    "noTitle": "Sedang streaming",
-    "elapsed": "mengudara",
-    "wholeStreamShort": "Semua",
-    "timeline": {
-      "start": "Awal stream",
-      "now": "Sekarang",
-      "next": "Batch berikutnya"
-    },
-    "modeLabel": "Cara mengklip",
-    "modeOnce": "Klip sekali",
-    "modeOnceBody": "Klip dari {duration} terakhir.",
-    "modeOnceBodyAll": "Klip dari semua sejauh ini.",
-    "modeFollow": "Terus klip",
-    "modeFollowBody": "Lalu batch baru setiap {interval} sampai stream selesai.",
-    "submitOnce": "Klip {duration} terakhir",
-    "submitAll": "Klip semuanya"
+    }
   },
   "liveHint": "Sedang live? Tempel tautan channel-mu untuk mengklipnya selagi live."
 }

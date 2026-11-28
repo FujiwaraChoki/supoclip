@@ -536,36 +536,22 @@
   "agentTrialEnded": "You've used your free Agent messages.",
   "agentBackWithCreator": "Keep going with Creator",
   "livePanel": {
+    "title": "{channel} is live",
     "windowLabel": "How much to clip",
-    "tooNew": "This stream just started. Try again in a minute.",
-    "usage": "Uses about {minutes} min of video now.",
-    "usageFollow": "Uses about {minutes} min now, then only each batch's new minutes.",
-    "locked": "Clipping live streams is part of the Creator plan.",
-    "seeCreator": "See Creator",
+    "wholeStream": "All",
+    "follow": "Keep clipping every {interval}",
+    "locked": "Clipping live streams is part of Creator.",
     "cancel": "Cancel",
+    "seeCreator": "See Creator",
+    "submitOnce": "Clip last {duration}",
+    "submitAll": "Clip it all",
     "submitFollow": "Start live clipping",
+    "tooNew": "This stream just started. Try again in a minute.",
     "platforms": {
       "youtube": "This YouTube stream",
       "twitch": "This Twitch stream",
       "kick": "This Kick stream"
-    },
-    "live": "Live",
-    "noTitle": "Streaming now",
-    "elapsed": "on air",
-    "wholeStreamShort": "All so far",
-    "timeline": {
-      "start": "Stream start",
-      "now": "Now",
-      "next": "Next batch"
-    },
-    "modeLabel": "How to clip",
-    "modeOnce": "Clip once",
-    "modeOnceBody": "Clips from the newest {duration}.",
-    "modeOnceBodyAll": "Clips everything so far.",
-    "modeFollow": "Keep clipping",
-    "modeFollowBody": "Then a new batch every {interval} until the stream ends.",
-    "submitOnce": "Clip last {duration}",
-    "submitAll": "Clip it all"
+    }
   },
   "liveHint": "Streaming right now? Paste your channel link to clip it while it's live."
 }

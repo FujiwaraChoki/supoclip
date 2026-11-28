@@ -1045,7 +1045,7 @@ export default function TaskPage() {
                   {new Date(task.created_at).toLocaleString(intlLocale(locale), { year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit", timeZoneName: "short" })}
                 </TooltipContent>
               </Tooltip>
-              {task.live && (
+              {task.live && !task.live_session && (
                 <span className="flex items-center gap-1.5" data-testid="live-source">
                   <span aria-hidden className="inline-flex size-1.5 rounded-full bg-red-500" />
                   {task.live.channel ? t("liveFrom", { channel: task.live.channel }) : t("liveSource")}

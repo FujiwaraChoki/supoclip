@@ -159,7 +159,7 @@
     },
     "follow": {
       "title": "O deja que siga recortando",
-      "body": "Activa “Seguir recortando mientras dure” y llegará una nueva tanda de clips cada 30 minutos hasta que acabe el directo. Cada tanda usa solo sus minutos nuevos y puedes detenerlo cuando quieras desde el proyecto."
+      "body": "Activa “Seguir recortando cada 30 min” y llegará una nueva tanda de clips cada media hora hasta que acabe el directo. Cada tanda usa solo sus minutos nuevos y puedes detenerlo cuando quieras desde el proyecto."
     }
   }
 }

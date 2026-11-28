@@ -310,38 +310,25 @@
   "liveFrom": "Live dari {channel}",
   "liveSource": "Diklip saat live",
   "liveSession": {
-    "status": {
-      "active": "Mengklip live",
-      "ended": "Stream selesai",
-      "stopped": "Klip live dihentikan",
-      "failed": "Klip live dihentikan"
-    },
-    "title": "Klip otomatis {channel}",
+    "title": "Mengklip {channel} secara live",
+    "titleStopped": "{channel} diklip secara live",
+    "nextPart": "bagian berikutnya sekitar {time}",
+    "nextPartSoon": "bagian berikutnya segera",
+    "part": "Bagian {number}",
     "thisStream": "stream ini",
-    "nextBatchAt": "Batch berikutnya sekitar {time}. Satu batch baru setiap {minutes} menit selama stream live.",
-    "nextBatchSoon": "Batch berikutnya segera datang.",
     "stopReason": {
-      "user": "Kamu menghentikannya. Bagian yang sudah jadi tetap menyimpan klipnya.",
-      "ended": "Stream selesai. Bagian terakhir mencakup sisanya.",
-      "minutes": "Menit video bulan ini sudah habis.",
-      "max_hours": "Satu sesi mengikuti stream paling lama 12 jam.",
-      "plan": "Mengklip livestream adalah bagian dari paket Creator.",
-      "errors": "Stream tidak bisa dijangkau untuk sementara waktu.",
-      "error": "Bagian berikutnya tidak bisa dimulai.",
-      "disabled": "Klip live sedang dijeda."
+      "user": "dihentikan olehmu",
+      "ended": "stream selesai",
+      "minutes": "menit bulan ini habis",
+      "max_hours": "batas 12 jam tercapai",
+      "plan": "butuh Creator",
+      "errors": "stream tak terjangkau",
+      "error": "bagian berikutnya gagal dimulai",
+      "disabled": "dijeda"
     },
     "stop": "Hentikan",
     "stopped": "Klip live dihentikan",
     "stopFailed": "Tidak bisa menghentikan klip live. Coba lagi.",
-    "partsLabel": "Bagian stream ini",
-    "part": "Bagian {number} · {start}–{end}",
-    "clips": "{count, plural, other {# klip}}",
-    "partFailed": "gagal",
-    "partWorking": "diproses…",
-    "live": "Live",
-    "nextBatch": "Batch berikutnya",
-    "now": "Sekarang",
-    "partShort": "Bagian {number}",
-    "summary": "{parts, plural, other {# bagian}} · {clips, plural, other {# klip}} sejauh ini"
+    "partsLabel": "Bagian stream ini"
   }
 }

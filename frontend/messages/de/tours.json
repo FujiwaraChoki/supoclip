@@ -159,7 +159,7 @@
     },
     "follow": {
       "title": "Oder lass es weiterschneiden",
-      "body": "Schalte „Weiter schneiden, solange er läuft“ ein, dann kommen alle 30 Minuten neue Clips, bis der Stream endet. Jede Runde verbraucht nur ihre neuen Minuten, und du kannst es im Projekt jederzeit stoppen."
+      "body": "Schalte „Alle 30 Min. weiter schneiden“ ein, dann kommen jede halbe Stunde neue Clips, bis der Stream endet. Jede Runde verbraucht nur ihre neuen Minuten, und du kannst es im Projekt jederzeit stoppen."
     }
   }
 }

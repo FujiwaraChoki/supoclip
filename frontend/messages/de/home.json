@@ -536,36 +536,22 @@
   "agentTrialEnded": "Deine kostenlosen Agent-Nachrichten sind aufgebraucht.",
   "agentBackWithCreator": "Mit Creator weitermachen",
   "livePanel": {
+    "title": "{channel} ist live",
     "windowLabel": "Wie viel schneiden",
-    "tooNew": "Dieser Stream hat gerade erst begonnen. Versuch es in einer Minute noch einmal.",
-    "usage": "Verbraucht jetzt etwa {minutes} Min. Video.",
-    "usageFollow": "Jetzt etwa {minutes} Min., danach nur die neuen Minuten jeder Runde.",
-    "locked": "Livestreams schneiden ist Teil des Creator-Plans.",
-    "seeCreator": "Creator ansehen",
+    "wholeStream": "Alles",
+    "follow": "Alle {interval} weiter schneiden",
+    "locked": "Livestreams schneiden ist Teil von Creator.",
     "cancel": "Abbrechen",
+    "seeCreator": "Creator ansehen",
+    "submitOnce": "Letzte {duration} schneiden",
+    "submitAll": "Alles schneiden",
     "submitFollow": "Live-Schnitt starten",
+    "tooNew": "Dieser Stream hat gerade erst begonnen. Versuch es in einer Minute noch einmal.",
     "platforms": {
       "youtube": "Dieser YouTube-Stream",
       "twitch": "Dieser Twitch-Stream",
       "kick": "Dieser Kick-Stream"
-    },
-    "live": "Live",
-    "noTitle": "Läuft gerade",
-    "elapsed": "auf Sendung",
-    "wholeStreamShort": "Alles",
-    "timeline": {
-      "start": "Streamstart",
-      "now": "Jetzt",
-      "next": "Nächste Runde"
-    },
-    "modeLabel": "Wie schneiden",
-    "modeOnce": "Einmal schneiden",
-    "modeOnceBody": "Clips aus den letzten {duration}.",
-    "modeOnceBodyAll": "Clips aus allem bisher.",
-    "modeFollow": "Weiter schneiden",
-    "modeFollowBody": "Dann alle {interval} neue Clips, bis der Stream endet.",
-    "submitOnce": "Letzte {duration} schneiden",
-    "submitAll": "Alles schneiden"
+    }
   },
   "liveHint": "Gerade live? Füge deinen Kanal-Link ein, um den Stream zu schneiden, während er läuft."
 }

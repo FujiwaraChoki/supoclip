@@ -310,38 +310,25 @@
   "liveFrom": "En directo de {channel}",
   "liveSource": "Recortado en directo",
   "liveSession": {
-    "status": {
-      "active": "Recortando en directo",
-      "ended": "El directo terminó",
-      "stopped": "Recorte en directo detenido",
-      "failed": "Recorte en directo detenido"
-    },
-    "title": "Recorte automático de {channel}",
+    "title": "Recortando {channel} en directo",
+    "titleStopped": "{channel} recortado en directo",
+    "nextPart": "próxima parte hacia las {time}",
+    "nextPartSoon": "próxima parte enseguida",
+    "part": "Parte {number}",
     "thisStream": "este directo",
-    "nextBatchAt": "Próxima tanda hacia las {time}. Una nueva cada {minutes} min mientras siga el directo.",
-    "nextBatchSoon": "La próxima tanda llega enseguida.",
     "stopReason": {
-      "user": "Lo detuviste. Las partes ya creadas conservan sus clips.",
-      "ended": "El directo terminó. La última parte cubre el resto.",
-      "minutes": "Se acabaron los minutos de vídeo de este mes.",
-      "max_hours": "Una sesión sigue un directo durante 12 horas como máximo.",
-      "plan": "Recortar directos forma parte del plan Creator.",
-      "errors": "No pudimos acceder al directo durante un rato.",
-      "error": "No se pudo empezar la siguiente parte.",
-      "disabled": "El recorte en directo está en pausa ahora mismo."
+      "user": "lo detuviste",
+      "ended": "el directo terminó",
+      "minutes": "sin minutos este mes",
+      "max_hours": "límite de 12 horas",
+      "plan": "requiere Creator",
+      "errors": "directo inaccesible",
+      "error": "la siguiente parte no pudo empezar",
+      "disabled": "en pausa"
     },
     "stop": "Detener",
     "stopped": "Recorte en directo detenido",
     "stopFailed": "No se pudo detener el recorte en directo. Inténtalo de nuevo.",
-    "partsLabel": "Partes de este directo",
-    "part": "Parte {number} · {start}–{end}",
-    "clips": "{count, plural, one {# clip} other {# clips}}",
-    "partFailed": "falló",
-    "partWorking": "procesando…",
-    "live": "En directo",
-    "nextBatch": "Próxima tanda",
-    "now": "Ahora",
-    "partShort": "Parte {number}",
-    "summary": "{parts, plural, one {# parte} other {# partes}} · {clips, plural, one {# clip} other {# clips}} hasta ahora"
+    "partsLabel": "Partes de este directo"
   }
 }

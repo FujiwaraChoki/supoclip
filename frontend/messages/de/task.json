@@ -310,38 +310,25 @@
   "liveFrom": "Live von {channel}",
   "liveSource": "Live geschnitten",
   "liveSession": {
-    "status": {
-      "active": "Live-Schnitt läuft",
-      "ended": "Stream beendet",
-      "stopped": "Live-Schnitt gestoppt",
-      "failed": "Live-Schnitt gestoppt"
-    },
-    "title": "Automatischer Schnitt von {channel}",
+    "title": "{channel} wird live geschnitten",
+    "titleStopped": "{channel} live geschnitten",
+    "nextPart": "nächster Teil gegen {time}",
+    "nextPartSoon": "nächster Teil gleich",
+    "part": "Teil {number}",
     "thisStream": "diesem Stream",
-    "nextBatchAt": "Nächste Runde gegen {time}. Alle {minutes} Min. eine neue, solange der Stream läuft.",
-    "nextBatchSoon": "Die nächste Runde kommt gleich.",
     "stopReason": {
-      "user": "Du hast ihn gestoppt. Fertige Teile behalten ihre Clips.",
-      "ended": "Der Stream ist beendet. Der letzte Teil deckt den Rest ab.",
-      "minutes": "Die Videominuten für diesen Monat sind aufgebraucht.",
-      "max_hours": "Eine Sitzung folgt einem Stream höchstens 12 Stunden lang.",
-      "plan": "Livestreams schneiden ist Teil des Creator-Plans.",
-      "errors": "Der Stream war eine Weile nicht erreichbar.",
-      "error": "Der nächste Teil konnte nicht gestartet werden.",
-      "disabled": "Der Live-Schnitt ist gerade pausiert."
+      "user": "von dir gestoppt",
+      "ended": "Stream beendet",
+      "minutes": "keine Minuten mehr diesen Monat",
+      "max_hours": "12-Stunden-Grenze erreicht",
+      "plan": "braucht Creator",
+      "errors": "Stream nicht erreichbar",
+      "error": "nächster Teil konnte nicht starten",
+      "disabled": "pausiert"
     },
     "stop": "Stoppen",
     "stopped": "Live-Schnitt gestoppt",
     "stopFailed": "Live-Schnitt konnte nicht gestoppt werden. Versuch es noch einmal.",
-    "partsLabel": "Teile dieses Streams",
-    "part": "Teil {number} · {start}–{end}",
-    "clips": "{count, plural, one {# Clip} other {# Clips}}",
-    "partFailed": "fehlgeschlagen",
-    "partWorking": "in Arbeit…",
-    "live": "Live",
-    "nextBatch": "Nächste Runde",
-    "now": "Jetzt",
-    "partShort": "Teil {number}",
-    "summary": "{parts, plural, one {# Teil} other {# Teile}} · {clips, plural, one {# Clip} other {# Clips}} bisher"
+    "partsLabel": "Teile dieses Streams"
   }
 }

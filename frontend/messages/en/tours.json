@@ -159,7 +159,7 @@
     },
     "follow": {
       "title": "Or keep it clipping",
-      "body": "Turn on “Keep clipping while live” and a new batch of clips arrives every 30 minutes until the stream ends. Each batch uses only its new minutes, and you can stop it any time from the project."
+      "body": "Turn on “Keep clipping every 30 min” and a new batch of clips arrives every half hour until the stream ends. Each batch uses only its new minutes, and you can stop it any time from the project."
     }
   }
 }

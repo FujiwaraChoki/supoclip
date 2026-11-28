@@ -310,38 +310,25 @@
   "liveFrom": "来自 {channel} 的直播",
   "liveSource": "直播剪辑",
   "liveSession": {
-    "status": {
-      "active": "正在直播剪辑",
-      "ended": "直播已结束",
-      "stopped": "直播剪辑已停止",
-      "failed": "直播剪辑已停止"
-    },
-    "title": "自动剪辑 {channel}",
+    "title": "正在直播剪辑 {channel}",
+    "titleStopped": "已直播剪辑 {channel}",
+    "nextPart": "下一部分约在 {time}",
+    "nextPartSoon": "下一部分马上就到",
+    "part": "第 {number} 部分",
     "thisStream": "这场直播",
-    "nextBatchAt": "下一批约在 {time}。直播期间每 {minutes} 分钟一批。",
-    "nextBatchSoon": "下一批马上就到。",
     "stopReason": {
-      "user": "你已停止。已生成的部分会保留片段。",
-      "ended": "直播已结束，最后一部分涵盖剩余内容。",
-      "minutes": "本月的视频分钟数已用完。",
-      "max_hours": "一次会话最多跟随直播 12 小时。",
-      "plan": "剪辑直播是 Creator 方案的功能。",
-      "errors": "有一段时间无法访问这场直播。",
-      "error": "无法开始下一部分。",
-      "disabled": "直播剪辑目前已暂停。"
+      "user": "已由你停止",
+      "ended": "直播已结束",
+      "minutes": "本月分钟数已用完",
+      "max_hours": "已达 12 小时上限",
+      "plan": "需要 Creator",
+      "errors": "无法访问直播",
+      "error": "下一部分无法开始",
+      "disabled": "已暂停"
     },
     "stop": "停止",
     "stopped": "直播剪辑已停止",
     "stopFailed": "无法停止直播剪辑，请重试。",
-    "partsLabel": "这场直播的各部分",
-    "part": "第 {number} 部分 · {start}–{end}",
-    "clips": "{count, plural, other {# 个片段}}",
-    "partFailed": "失败",
-    "partWorking": "处理中…",
-    "live": "直播中",
-    "nextBatch": "下一批",
-    "now": "现在",
-    "partShort": "第 {number} 部分",
-    "summary": "{parts, plural, other {# 个部分}} · 目前 {clips, plural, other {# 个片段}}"
+    "partsLabel": "这场直播的各部分"
   }
 }

@@ -111,7 +111,6 @@
       "eyebrow": "Live clipping · Creator",
       "title": "Clip streams while they're live",
       "body": "Creator clips YouTube, Twitch and Kick streams as they happen: the newest part now, or a new batch every half hour until the stream ends.",
-      "badge": "Live clipping",
       "perks": {
         "0": "Clip the newest part of a stream that's still going",
         "1": "Keep clipping while live: new clips every 30 minutes",

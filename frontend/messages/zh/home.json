@@ -536,36 +536,22 @@
   "agentTrialEnded": "你的免费 Agent 消息已用完。",
   "agentBackWithCreator": "升级 Creator 继续使用",
   "livePanel": {
+    "title": "{channel} 正在直播",
     "windowLabel": "剪多少",
-    "tooNew": "这场直播刚开始，请一分钟后再试。",
-    "usage": "现在约使用 {minutes} 分钟视频额度。",
-    "usageFollow": "现在约使用 {minutes} 分钟，之后每批只用新增的分钟数。",
-    "locked": "剪辑直播是 Creator 方案的功能。",
-    "seeCreator": "了解 Creator",
+    "wholeStream": "全部",
+    "follow": "每 {interval} 持续剪辑",
+    "locked": "剪辑直播是 Creator 的功能。",
     "cancel": "取消",
+    "seeCreator": "了解 Creator",
+    "submitOnce": "剪最近 {duration}",
+    "submitAll": "全部剪辑",
     "submitFollow": "开始直播剪辑",
+    "tooNew": "这场直播刚开始，请一分钟后再试。",
     "platforms": {
       "youtube": "这场 YouTube 直播",
       "twitch": "这场 Twitch 直播",
       "kick": "这场 Kick 直播"
-    },
-    "live": "直播中",
-    "noTitle": "正在直播",
-    "elapsed": "已直播",
-    "wholeStreamShort": "全部",
-    "timeline": {
-      "start": "开播",
-      "now": "现在",
-      "next": "下一批"
-    },
-    "modeLabel": "剪辑方式",
-    "modeOnce": "剪一次",
-    "modeOnceBody": "从最近 {duration} 中剪辑。",
-    "modeOnceBodyAll": "从开播到现在的全部内容中剪辑。",
-    "modeFollow": "持续剪辑",
-    "modeFollowBody": "之后每 {interval} 一批，直到直播结束。",
-    "submitOnce": "剪最近 {duration}",
-    "submitAll": "全部剪辑"
+    }
   },
   "liveHint": "正在直播？粘贴你的频道链接，边直播边剪辑。"
 }

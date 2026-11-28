@@ -536,36 +536,22 @@
   "agentTrialEnded": "Você já usou suas mensagens grátis do Agent.",
   "agentBackWithCreator": "Continue com o Creator",
   "livePanel": {
+    "title": "{channel} está ao vivo",
     "windowLabel": "Quanto cortar",
-    "tooNew": "Esta live acabou de começar. Tente de novo em um minuto.",
-    "usage": "Usa cerca de {minutes} min de vídeo agora.",
-    "usageFollow": "Usa cerca de {minutes} min agora e depois só os minutos novos de cada lote.",
-    "locked": "Cortar lives faz parte do plano Creator.",
-    "seeCreator": "Ver Creator",
+    "wholeStream": "Tudo",
+    "follow": "Continuar cortando a cada {interval}",
+    "locked": "Cortar lives faz parte do Creator.",
     "cancel": "Cancelar",
+    "seeCreator": "Ver Creator",
+    "submitOnce": "Cortar últimos {duration}",
+    "submitAll": "Cortar tudo",
     "submitFollow": "Começar a cortar ao vivo",
+    "tooNew": "Esta live acabou de começar. Tente de novo em um minuto.",
     "platforms": {
       "youtube": "Esta live do YouTube",
       "twitch": "Esta live da Twitch",
       "kick": "Esta live da Kick"
-    },
-    "live": "Ao vivo",
-    "noTitle": "Transmitindo agora",
-    "elapsed": "no ar",
-    "wholeStreamShort": "Tudo",
-    "timeline": {
-      "start": "Início",
-      "now": "Agora",
-      "next": "Próximo lote"
-    },
-    "modeLabel": "Como cortar",
-    "modeOnce": "Cortar uma vez",
-    "modeOnceBody": "Clipes dos últimos {duration}.",
-    "modeOnceBodyAll": "Clipes de tudo até agora.",
-    "modeFollow": "Continuar cortando",
-    "modeFollowBody": "E um novo lote a cada {interval} até a live acabar.",
-    "submitOnce": "Cortar últimos {duration}",
-    "submitAll": "Cortar tudo"
+    }
   },
   "liveHint": "Está ao vivo agora? Cole o link do seu canal para cortar a live enquanto acontece."
 }

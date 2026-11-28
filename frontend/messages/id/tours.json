@@ -159,7 +159,7 @@
     },
     "follow": {
       "title": "Atau biarkan terus mengklip",
-      "body": "Nyalakan “Terus klip selama live” dan batch klip baru datang setiap 30 menit sampai stream selesai. Setiap batch hanya memakai menit barunya, dan kamu bisa menghentikannya kapan saja dari proyek."
+      "body": "Nyalakan “Terus klip setiap 30 mnt” dan batch klip baru datang setiap setengah jam sampai stream selesai. Setiap batch hanya memakai menit barunya, dan kamu bisa menghentikannya kapan saja dari proyek."
     }
   }
 }

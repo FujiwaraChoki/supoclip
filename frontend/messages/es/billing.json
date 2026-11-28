@@ -111,7 +111,6 @@
       "eyebrow": "Recorte en directo · Creator",
       "title": "Recorta directos mientras ocurren",
       "body": "Creator recorta directos de YouTube, Twitch y Kick mientras suceden: la parte más reciente ahora, o una nueva tanda cada media hora hasta que acabe el directo.",
-      "badge": "Recorte en directo",
       "perks": {
         "0": "Recorta la parte más reciente de un directo que sigue en marcha",
         "1": "Sigue recortando en directo: clips nuevos cada 30 minutos",

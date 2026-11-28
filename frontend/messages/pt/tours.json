@@ -159,7 +159,7 @@
     },
     "follow": {
       "title": "Ou deixe cortando",
-      "body": "Ative “Continuar cortando durante a live” e um novo lote de clipes chega a cada 30 minutos até a live acabar. Cada lote usa só os minutos novos, e você pode parar quando quiser pelo projeto."
+      "body": "Ative “Continuar cortando a cada 30 min” e um novo lote de clipes chega a cada meia hora até a live acabar. Cada lote usa só os minutos novos, e você pode parar quando quiser pelo projeto."
     }
   }
 }

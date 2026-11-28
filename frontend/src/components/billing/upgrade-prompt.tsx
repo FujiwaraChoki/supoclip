@@ -635,11 +635,7 @@ function PlanShowcase({
   if (reason.kind === "live") {
     return (
       <div className="hidden flex-col justify-center border-l bg-muted/50 p-6 sm:flex">
-        <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-red-600 dark:text-red-400">
-          <span aria-hidden className="inline-flex size-2 rounded-full bg-red-500" />
-          {text.t("upgrade.live.badge")}
-        </p>
-        <ul className="mt-4 space-y-2">
+        <ul className="space-y-2">
           {[0, 1, 2].map((perk) => (
             <li key={perk} className="flex items-start gap-2 text-sm">
               <Check className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
