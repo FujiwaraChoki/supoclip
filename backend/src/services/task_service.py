@@ -987,7 +987,8 @@ class TaskService(ClipEditingMixin):
                         continue
                     # Take the email still now: once saved, the clip may move to S3/R2.
                     if wants_previews is None:
-                        wants_previews = await self._completion_email_wanted(task_id)
+                        async with session_lock:
+                            wants_previews = await self._completion_email_wanted(task_id)
                     preview = (
                         await run_in_thread(
                             clip_preview, Path(clip_info["path"]), clip_info.get("hook_title")
@@ -1023,45 +1024,46 @@ class TaskService(ClipEditingMixin):
                             "workflow_meta": meta or None,
                         }
 
-                    async with self._processing_transaction(task_id):
-                        await check_cancelled()
-                        clip_order = max(clip_ids_by_order, default=0) + 1
-                        # Save to DB immediately
-                        clip_id = await self.clip_repo.create_clip(
-                            self.db,
-                            task_id=task_id,
-                            filename=clip_info["filename"],
-                            file_path=clip_info["path"],
-                            start_time=clip_info["start_time"],
-                            end_time=clip_info["end_time"],
-                            duration=clip_info["duration"],
-                            text=clip_info.get("text", ""),
-                            relevance_score=clip_info.get("relevance_score", 0.0),
-                            reasoning=clip_info.get("reasoning", ""),
-                            clip_order=clip_order,
-                            virality_score=clip_info.get("virality_score", 0),
-                            hook_score=clip_info.get("hook_score", 0),
-                            engagement_score=clip_info.get("engagement_score", 0),
-                            value_score=clip_info.get("value_score", 0),
-                            shareability_score=clip_info.get("shareability_score", 0),
-                            hook_type=clip_info.get("hook_type"),
-                            hook_title=clip_info.get("hook_title"),
-                            **workflow_fields,
-                            **({"fx_meta": clip_info["fx_meta"]} if clip_info.get("fx_meta") else {}),
-                        )
+                    async with session_lock:
+                        async with self._processing_transaction(task_id):
+                            await check_cancelled()
+                            clip_order = max(clip_ids_by_order, default=0) + 1
+                            # Save to DB immediately
+                            clip_id = await self.clip_repo.create_clip(
+                                self.db,
+                                task_id=task_id,
+                                filename=clip_info["filename"],
+                                file_path=clip_info["path"],
+                                start_time=clip_info["start_time"],
+                                end_time=clip_info["end_time"],
+                                duration=clip_info["duration"],
+                                text=clip_info.get("text", ""),
+                                relevance_score=clip_info.get("relevance_score", 0.0),
+                                reasoning=clip_info.get("reasoning", ""),
+                                clip_order=clip_order,
+                                virality_score=clip_info.get("virality_score", 0),
+                                hook_score=clip_info.get("hook_score", 0),
+                                engagement_score=clip_info.get("engagement_score", 0),
+                                value_score=clip_info.get("value_score", 0),
+                                shareability_score=clip_info.get("shareability_score", 0),
+                                hook_type=clip_info.get("hook_type"),
+                                hook_title=clip_info.get("hook_title"),
+                                **workflow_fields,
+                                **({"fx_meta": clip_info["fx_meta"]} if clip_info.get("fx_meta") else {}),
+                            )
 
-                        # Update task's clip IDs array
-                        next_clip_ids = {**clip_ids_by_order, clip_order: clip_id}
-                        await self.task_repo.update_task_clips(
-                            self.db, task_id, [next_clip_ids[order] for order in sorted(next_clip_ids)]
-                        )
-                        await save_checkpoint({"completed_positions": sorted(completed_positions | {i + 1})})
-                        if preview_index is not None and user_id:
-                            # The free preview is used up by the clip it gives, in the same commit: a preview
-                            # cancelled or failing after this keeps its clip, and mustn't leave another free one.
-                            await mark_preview_used(self.db, user_id)
+                            # Update task's clip IDs array
+                            next_clip_ids = {**clip_ids_by_order, clip_order: clip_id}
+                            await self.task_repo.update_task_clips(
+                                self.db, task_id, [next_clip_ids[order] for order in sorted(next_clip_ids)]
+                            )
+                            await save_checkpoint({"completed_positions": sorted(completed_positions | {i + 1})})
+                            if preview_index is not None and user_id:
+                                # The free preview is used up by the clip it gives, in the same commit: a preview
+                                # cancelled or failing after this keeps its clip, and mustn't leave another free one.
+                                await mark_preview_used(self.db, user_id)
 
-                        await check_cancelled()
+                            await check_cancelled()
                     if pending_clip_path is not None:
                         pending_clip_paths.discard(pending_clip_path)
                     pending_clip_path = None
@@ -1072,9 +1074,10 @@ class TaskService(ClipEditingMixin):
 
                     # Notify frontend via SSE
                     if clip_ready_callback:
-                        clip_record = await self.clip_repo.get_clip_by_id(
-                            self.db, clip_id
-                        )
+                        async with session_lock:
+                            clip_record = await self.clip_repo.get_clip_by_id(
+                                self.db, clip_id
+                            )
                         if clip_record:
                             await clip_ready_callback(shown_index - 1, total_clips, clip_record)
             finally:

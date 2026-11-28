@@ -164,3 +164,122 @@ async def test_parallel_clip_rendering_preserves_order_and_runs_concurrently(tmp
 
     assert peak_active == 2
     assert created_filenames == [(1, "clip_1.mp4"), (2, "clip_2.mp4"), (3, "clip_3.mp4")]
+
+
+@pytest.mark.asyncio
+async def test_parallel_beat_checkpoint_and_clip_persistence_are_serialized(tmp_path):
+    """Concurrent beat checkpoints must never overlap clip DB transactions on self.db."""
+    service = build_task_service()
+    service.config.clip_render_concurrency = 2
+    service.config.temp_dir = str(tmp_path)
+    service.task_repo.get_task_by_id = AsyncMock(
+        return_value={"status": "queued", "edit_style": {"intensity": "bold"}}
+    )
+    service.task_repo.save_workflow_plan = AsyncMock()
+    service.video_service.process_video_complete = AsyncMock(
+        return_value={
+            "video_path": str(tmp_path / "src.mp4"),
+            "transcript": "hello world",
+            "analysis_json": "{}",
+            "segments": [],
+            "segments_to_render": [
+                {"start_time": "00:00", "end_time": "00:10", "text": "clip 1"},
+                {"start_time": "00:10", "end_time": "00:20", "text": "clip 2"},
+            ],
+        }
+    )
+
+    in_db = False
+    overlap_detected = False
+    clip1_persisting = asyncio.Event()
+
+    async def fake_create_clip(_db, **kwargs):
+        nonlocal in_db, overlap_detected
+        if in_db:
+            overlap_detected = True
+        in_db = True
+        clip1_persisting.set()
+        await asyncio.sleep(0.05)
+        in_db = False
+        return f"clip-id-{kwargs['clip_order']}"
+
+    orig_save = service.checkpoint_repo.save
+
+    async def checked_save(db, task_id, input_key, patch):
+        nonlocal in_db, overlap_detected
+        if "edit_beats" in patch and in_db:
+            overlap_detected = True
+        return await orig_save(db, task_id, input_key, patch)
+
+    service.clip_repo.create_clip = AsyncMock(side_effect=fake_create_clip)
+    service.checkpoint_repo.save = AsyncMock(side_effect=checked_save)
+
+    async def fake_create_single_clip(_video_path, seg, idx, out_dir, *_args, fx=None, **_kwargs):
+        if idx == 1 and fx is not None and fx.on_beats is not None:
+            # Wait until clip 1 is mid-transaction, then fire clip 2's beat checkpoint.
+            await clip1_persisting.wait()
+            await fx.on_beats(idx, {"beats": []})
+        p = Path(out_dir) / f"clip_{idx + 1}.mp4"
+        p.write_bytes(b"mp4")
+        return {
+            "clip_id": idx + 1,
+            "filename": p.name,
+            "path": str(p),
+            "start_time": seg["start_time"],
+            "end_time": seg["end_time"],
+            "duration": 10.0,
+            "text": seg["text"],
+        }
+
+    service.video_service.create_single_clip = AsyncMock(side_effect=fake_create_single_clip)
+
+    await service.process_task(task_id="task-lock", url="upload://src.mp4", source_type="upload")
+    assert overlap_detected is False
+
+
+@pytest.mark.asyncio
+async def test_cancelled_single_clip_cleans_up_written_file(tmp_path):
+    """When a concurrent clip task is cancelled mid-render, its output file is removed."""
+    from src.services import video_service as vs_mod
+
+    source = tmp_path / "src.mp4"
+    source.write_bytes(b"src")
+    out_dir = tmp_path / "clips"
+    out_dir.mkdir()
+
+    started = asyncio.Event()
+    written_paths: list[Path] = []
+
+    def fake_create_optimized_clip(_vp, _s, _e, clip_path, *_args, **_kwargs):
+        written_paths.append(Path(clip_path))
+        Path(clip_path).write_bytes(b"rendered-mp4")
+        Path(clip_path).with_suffix(".source_map.json").write_text("{}", encoding="utf-8")
+        return True
+
+    async def fake_run_in_thread(fn, *args, **kwargs):
+        if fn is fake_create_optimized_clip:
+            fn(*args, **kwargs)
+            started.set()
+            await asyncio.sleep(5)
+        return fn(*args, **kwargs)
+
+    with (
+        patch.object(vs_mod, "create_optimized_clip", fake_create_optimized_clip),
+        patch.object(vs_mod, "run_in_thread", side_effect=fake_run_in_thread),
+    ):
+        task = asyncio.create_task(
+            vs_mod.VideoService.create_single_clip(
+                source,
+                {"start_time": "00:00", "end_time": "00:10", "text": "hello"},
+                0,
+                out_dir,
+            )
+        )
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+    assert len(written_paths) == 1
+    assert not written_paths[0].exists()
+    assert not written_paths[0].with_suffix(".source_map.json").exists()
