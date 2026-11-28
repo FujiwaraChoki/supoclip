@@ -204,7 +204,7 @@ class Turn:
             api_key=config.anthropic_api_key, timeout=REQUEST_TIMEOUT_SECONDS, max_retries=2
         )
         system = [{"type": "text", "text": SYSTEM_PROMPT}]
-        for _step in range(MAX_MODEL_CALLS):
+        while int(self.usage.get("model_calls") or 0) < MAX_MODEL_CALLS:
             if await store.heartbeat(self.run_id):
                 await store.update_run(self.run_id, status="cancelled", usage=self.usage)
                 await self.publish("done", {"status": "cancelled"})

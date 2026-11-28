@@ -345,6 +345,7 @@ export function AgentChat({ conversationId, freshlyStarted }: { conversationId: 
       status: fresh.run?.status === "awaiting_approval" ? "awaiting_approval" : fresh.run ? "running" : "idle",
       approval: fresh.run?.status === "awaiting_approval" ? fresh.run.pending?.items ?? null : null,
       jobs: fresh.jobs,
+      ...(fresh.partial?.text ? { partial: fresh.partial.text } : {}),
     });
     void queryClient.invalidateQueries({ queryKey: agentKeys.conversations });
     return fresh;
@@ -367,12 +368,18 @@ export function AgentChat({ conversationId, freshlyStarted }: { conversationId: 
   }, [data, freshlyStarted]);
 
   // One event stream per open conversation; the browser resumes it with Last-Event-ID.
+  // On non-200 HTTP responses (e.g. 429 too many tabs) the browser closes EventSource
+  // permanently, so back off, refresh the transcript, and reconnect instead of hanging.
   const streamReady = data !== undefined;
   useEffect(() => {
     if (!streamReady) return;
-    const after = cursor.current ?? "$";
-    const source = new EventSource(`/api/agent/conversations/${conversationId}/events?after=${encodeURIComponent(after)}`);
+    let active = true;
+    let source: EventSource | null = null;
+    let retryTimer: number | null = null;
+    let attempt = 0;
+
     const handle = (event: MessageEvent) => {
+      attempt = 0;
       let payload: Record<string, unknown> = {};
       try { payload = JSON.parse(event.data); } catch { /* ignore */ }
       if (event.lastEventId) cursor.current = event.lastEventId;
@@ -385,10 +392,46 @@ export function AgentChat({ conversationId, freshlyStarted }: { conversationId: 
         void reload().catch(() => {});
       }
     };
-    for (const name of ["run", "text", "tool_start", "tool_end", "approval", "done", "error", "job", "notice"]) {
-      source.addEventListener(name, handle as EventListener);
-    }
-    return () => source.close();
+
+    const connect = () => {
+      if (!active) return;
+      const after = cursor.current ?? "$";
+      const next = new EventSource(`/api/agent/conversations/${conversationId}/events?after=${encodeURIComponent(after)}`);
+      source = next;
+      next.onopen = () => { attempt = 0; };
+      next.onerror = () => {
+        if (!active || source !== next) return;
+        if (next.readyState === EventSource.CLOSED) {
+          next.close();
+          source = null;
+          const delay = Math.min(30_000, 2_000 * 2 ** Math.min(attempt, 4));
+          attempt += 1;
+          void reload()
+            .then((fresh) => {
+              if (!active) return;
+              cursor.current = fresh.partial?.event_id ?? fresh.last_event_id;
+              retryTimer = window.setTimeout(connect, delay);
+            })
+            .catch((err: unknown) => {
+              if (!active) return;
+              const status = (err as { status?: number } | null)?.status;
+              // Stop reconnecting on permanent 4xx errors (deleted chat, signed out, plan locked).
+              if (status && status >= 400 && status < 500 && status !== 429) return;
+              retryTimer = window.setTimeout(connect, delay);
+            });
+        }
+      };
+      for (const name of ["run", "text", "tool_start", "tool_end", "approval", "done", "error", "job", "notice"]) {
+        next.addEventListener(name, handle as EventListener);
+      }
+    };
+
+    connect();
+    return () => {
+      active = false;
+      if (retryTimer !== null) window.clearTimeout(retryTimer);
+      source?.close();
+    };
   }, [conversationId, streamReady, reload]);
 
   const items = useMemo(() => data?.items ?? [], [data]);
