@@ -78,8 +78,10 @@ Provisioning a worker (about 3–5 minutes):
    its layers match the application host's.
 5. **Check connectivity before anything can take a job.** A throwaway container
    with the worker's exact settings must load the configuration, find the
-   `tasks` table in PostgreSQL, ping Redis and see the video workers'
-   heartbeat key there. A worker pointed at the wrong database would otherwise
+   `tasks` table in PostgreSQL, ping Redis and see a SupoClip worker's
+   heartbeat key there (video or cron worker: the cron worker's is there while
+   every video worker is stalled or being rolled, which is when a new worker is
+   needed most). A worker pointed at the wrong database would otherwise
    fail every job it picks up within seconds.
 6. `docker compose up`, confirm the container stays up, label it `state=active`.
 

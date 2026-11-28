@@ -4,6 +4,10 @@ What changed in SupoClip for people using the product. Newest dates are first.
 
 Add a line here when a pull request changes something a user can see. Use **New**, **Improved**, **Fixed**, or **Under the hood**, describe the change in plain language, and link the pull request. Skip internal-only work, or fold it into one **Under the hood** line. Do not include customer names, email addresses, user IDs, or anything else private.
 
+## 2026-11-28
+
+- **Fixed:** Extra rendering capacity now comes online during busy periods even while our main render server is briefly unresponsive, instead of being turned away and paused for half an hour, so clips wait less in the queue. ([#596](https://github.com/FujiwaraChoki/supoclip/pull/596))
+
 ## 2026-11-27
 
 - **New:** Black Friday sale: 40% off Pro and Creator until Sunday, December 6. Monthly plans are 40% off for the first 3 months and yearly plans for the first year. The discount is applied automatically at checkout, and the landing page shows the sale prices and a Black Friday animation. ([#594](https://github.com/FujiwaraChoki/supoclip/pull/594))
