@@ -536,29 +536,36 @@
   "agentTrialEnded": "Deine kostenlosen Agent-Nachrichten sind aufgebraucht.",
   "agentBackWithCreator": "Mit Creator weitermachen",
   "livePanel": {
-    "liveNow": "Jetzt live",
-    "title": "{channel} ist live",
-    "body": "Seit {elapsed} live. Schneide jetzt den neuesten Teil, ohne aufs VOD zu warten.",
-    "bodyNoElapsed": "Schneide jetzt den neuesten Teil, ohne aufs VOD zu warten.",
     "windowLabel": "Wie viel schneiden",
-    "lastMinutes": "Letzte {minutes} Min.",
-    "wholeStream": "Alles bisher",
     "tooNew": "Dieser Stream hat gerade erst begonnen. Versuch es in einer Minute noch einmal.",
-    "followTitle": "Weiter schneiden, solange er läuft",
-    "followBody": "Alle {minutes} Minuten neue Clips, bis der Stream endet.",
     "usage": "Verbraucht jetzt etwa {minutes} Min. Video.",
-    "usageFollow": "Jede neue Runde verbraucht nur ihre neuen Minuten.",
-    "creatorTag": "Creator",
+    "usageFollow": "Jetzt etwa {minutes} Min., danach nur die neuen Minuten jeder Runde.",
     "locked": "Livestreams schneiden ist Teil des Creator-Plans.",
     "seeCreator": "Creator ansehen",
     "cancel": "Abbrechen",
-    "submit": "Jetzt schneiden",
     "submitFollow": "Live-Schnitt starten",
     "platforms": {
       "youtube": "Dieser YouTube-Stream",
       "twitch": "Dieser Twitch-Stream",
       "kick": "Dieser Kick-Stream"
-    }
+    },
+    "live": "Live",
+    "noTitle": "Läuft gerade",
+    "elapsed": "auf Sendung",
+    "wholeStreamShort": "Alles",
+    "timeline": {
+      "start": "Streamstart",
+      "now": "Jetzt",
+      "next": "Nächste Runde"
+    },
+    "modeLabel": "Wie schneiden",
+    "modeOnce": "Einmal schneiden",
+    "modeOnceBody": "Clips aus den letzten {duration}.",
+    "modeOnceBodyAll": "Clips aus allem bisher.",
+    "modeFollow": "Weiter schneiden",
+    "modeFollowBody": "Dann alle {interval} neue Clips, bis der Stream endet.",
+    "submitOnce": "Letzte {duration} schneiden",
+    "submitAll": "Alles schneiden"
   },
   "liveHint": "Gerade live? Füge deinen Kanal-Link ein, um den Stream zu schneiden, während er läuft."
 }

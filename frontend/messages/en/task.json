@@ -310,7 +310,6 @@
   "liveFrom": "Live from {channel}",
   "liveSource": "Clipped live",
   "liveSession": {
-    "following": "Clipping live",
     "status": {
       "active": "Clipping live",
       "ended": "Stream ended",
@@ -338,6 +337,11 @@
     "part": "Part {number} · {start}–{end}",
     "clips": "{count, plural, one {# clip} other {# clips}}",
     "partFailed": "failed",
-    "partWorking": "working…"
+    "partWorking": "working…",
+    "live": "Live",
+    "nextBatch": "Next batch",
+    "now": "Now",
+    "partShort": "Part {number}",
+    "summary": "{parts, plural, one {# part} other {# parts}} · {clips, plural, one {# clip} other {# clips}} so far"
   }
 }

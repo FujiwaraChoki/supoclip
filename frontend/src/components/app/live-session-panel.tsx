@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl";
 import { Loader2, Square } from "lucide-react";
 import { toast } from "sonner";
 
+import { LivePill, streamClock } from "@/components/live-stream-panel";
+import { VideoSourceIcon } from "@/components/video-source-icon";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -37,24 +39,26 @@ export type LiveSessionInfo = {
   covered_until_seconds: number;
   parts_created: number;
   next_check_at: string | null;
+  stream_started_at?: string | null;
   interval_seconds: number;
   parts?: LiveSessionPart[];
   part_number?: number;
 };
 
 const REFRESH_MS = 60_000;
+type PartState = "done" | "working" | "failed";
 
-function clock(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds));
-  const hours = Math.floor(total / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-  const rest = total % 60;
-  return hours > 0
-    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(rest).padStart(2, "0")}`
-    : `${minutes}:${String(rest).padStart(2, "0")}`;
+function partState(part: LiveSessionPart): PartState {
+  if (part.task_status === "completed") return "done";
+  if (part.task_status === "error" || part.task_status === "cancelled") return "failed";
+  return "working";
 }
 
-/** A continuous live clipping session on the task page of any of its parts. */
+function isPlatform(value: string): value is "youtube" | "twitch" | "kick" {
+  return value === "youtube" || value === "twitch" || value === "kick";
+}
+
+/** A continuous live clipping session, on the task page of any of its parts. */
 export function LiveSessionPanel({ taskId, session: initial, readOnly }: {
   taskId: string;
   session: LiveSessionInfo;
@@ -101,20 +105,24 @@ export function LiveSessionPanel({ taskId, session: initial, readOnly }: {
     : null;
   const channel = session.channel || session.title || t("thisStream");
   const parts = session.parts ?? [];
+  const clips = parts.reduce((sum, part) => sum + part.clips_count, 0);
 
   return (
-    <section data-testid="live-session-panel" data-tour="live-session" className="mb-6 rounded-xl border bg-muted/30 p-4">
-      <div className="flex flex-wrap items-start gap-3">
+    <section data-testid="live-session-panel" data-tour="live-session" className="mb-6 overflow-hidden rounded-xl border bg-background">
+      <div className="flex items-center gap-3 p-4">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+          {isPlatform(session.platform)
+            ? <VideoSourceIcon source={session.platform} className="size-4" aria-hidden />
+            : null}
+        </span>
         <div className="min-w-0 flex-1">
-          <p className={cn(
-            "flex items-center gap-2 text-xs font-semibold uppercase tracking-wide",
-            active ? "text-red-600 dark:text-red-400" : "text-muted-foreground",
-          )}>
-            <span aria-hidden className={cn("inline-flex size-2 rounded-full", active ? "bg-red-500" : "bg-muted-foreground/50")} />
-            {active ? t("following") : t(`status.${session.status}`)}
+          <p className="flex min-w-0 items-center gap-2 text-sm font-semibold">
+            <span className="truncate">{t("title", { channel })}</span>
+            {active
+              ? <LivePill label={t("live")} />
+              : <span className="shrink-0 rounded-[5px] bg-muted px-1.5 py-px text-[11px] font-medium leading-4 text-muted-foreground">{t(`status.${session.status}`)}</span>}
           </p>
-          <p className="mt-1 text-sm font-medium">{t("title", { channel })}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p className="truncate text-xs text-muted-foreground">
             {active
               ? nextLabel
                 ? t("nextBatchAt", { time: nextLabel, minutes: Math.round(session.interval_seconds / 60) })
@@ -126,42 +134,103 @@ export function LiveSessionPanel({ taskId, session: initial, readOnly }: {
         </div>
         {active && !readOnly && (
           <Button type="button" size="sm" variant="outline" onClick={() => void stop()} disabled={stopping}>
-            {stopping ? <Loader2 className="size-4 animate-spin" /> : <Square className="size-3.5" />}
+            {stopping ? <Loader2 className="size-4 animate-spin" /> : <Square className="size-3 fill-current" />}
             {t("stop")}
           </Button>
         )}
       </div>
       {parts.length > 0 && (
-        <ol className="mt-3 flex flex-wrap gap-2" aria-label={t("partsLabel")}>
-          {parts.map((part) => {
-            const current = part.task_id === taskId;
-            const label = t("part", { number: part.part_number, start: clock(part.start_seconds), end: clock(part.end_seconds) });
-            const body = (
-              <>
-                <span className="font-medium">{label}</span>
-                <span className="text-muted-foreground">
-                  {part.task_status === "completed"
-                    ? t("clips", { count: part.clips_count })
-                    : part.task_status === "error" || part.task_status === "cancelled"
-                      ? t("partFailed")
-                      : t("partWorking")}
-                </span>
-              </>
-            );
-            const className = cn(
-              "flex items-center gap-2 rounded-full border px-3 py-1 text-xs tabular-nums",
-              current ? "border-foreground bg-background" : "bg-background/60 hover:bg-background",
-            );
-            return (
-              <li key={part.part_number}>
-                {part.task_id && !current
-                  ? <Link href={`/tasks/${part.task_id}`} className={className}>{body}</Link>
-                  : <span className={className} aria-current={current ? "page" : undefined}>{body}</span>}
-              </li>
-            );
-          })}
-        </ol>
+        <div className="border-t px-4 pb-3 pt-3.5">
+          <PartsTimeline parts={parts} taskId={taskId} active={active} session={session} labels={{
+            part: (part) => t("part", { number: part.part_number, start: streamClock(part.start_seconds), end: streamClock(part.end_seconds) }),
+            state: (part) => partState(part) === "done" ? t("clips", { count: part.clips_count }) : partState(part) === "failed" ? t("partFailed") : t("partWorking"),
+            short: (part) => t("partShort", { number: part.part_number }),
+            next: t("nextBatch"),
+            now: t("now"),
+            list: t("partsLabel"),
+          }} />
+          <p className="mt-2 text-xs text-muted-foreground">{t("summary", { parts: parts.length, clips })}</p>
+        </div>
       )}
     </section>
+  );
+}
+
+function PartsTimeline({ parts, taskId, active, session, labels }: {
+  parts: LiveSessionPart[];
+  taskId: string;
+  active: boolean;
+  session: LiveSessionInfo;
+  labels: {
+    part: (part: LiveSessionPart) => string;
+    state: (part: LiveSessionPart) => string;
+    short: (part: LiveSessionPart) => string;
+    next: string;
+    now: string;
+    list: string;
+  };
+}) {
+  const start = Math.min(...parts.map((part) => part.start_seconds));
+  const lastEnd = Math.max(...parts.map((part) => part.end_seconds));
+  const startedAt = session.stream_started_at ? Date.parse(session.stream_started_at) : NaN;
+  const nowSeconds = Number.isFinite(startedAt) ? (Date.now() - startedAt) / 1000 : lastEnd;
+  // While live, the bar runs to "now" and keeps room for the batch being gathered.
+  const end = active ? Math.max(nowSeconds, lastEnd + (lastEnd - start) * 0.18) : lastEnd;
+  const span = Math.max(1, end - start);
+  const at = (seconds: number) => ((seconds - start) / span) * 100;
+
+  return (
+    <div>
+      <ol className="relative h-9" aria-label={labels.list}>
+        {parts.map((part, index) => {
+          const state = partState(part);
+          // Parts overlap by a minute or so; each is drawn from where the one before it ended.
+          const from = index > 0 ? Math.max(part.start_seconds, parts[index - 1].end_seconds) : part.start_seconds;
+          const current = part.task_id === taskId;
+          const description = `${labels.part(part)} · ${labels.state(part)}`;
+          // The part on screen is solid; the others are light, so neighbours never merge into one bar.
+          const className = cn(
+            "@container absolute inset-y-0 flex min-w-0 items-center gap-1.5 overflow-hidden rounded-md border px-2 text-[11px] font-medium transition-colors",
+            current
+              ? "border-foreground bg-foreground text-background"
+              : state === "failed"
+                ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300"
+                : state === "working"
+                  ? "border-border bg-muted/60 text-foreground hover:bg-muted"
+                  : "border-border bg-muted text-foreground hover:border-foreground/30",
+          );
+          const body = (
+            <>
+              {state === "working" && <Loader2 aria-hidden className={cn("size-3 shrink-0 animate-spin", current ? "text-background/70" : "text-muted-foreground")} />}
+              <span className="hidden truncate @[3.5rem]:inline">{labels.short(part)}</span>
+              <span className={cn("hidden truncate font-normal @[8rem]:inline", current ? "text-background/70" : "text-muted-foreground")}>{labels.state(part)}</span>
+            </>
+          );
+          const style = { left: `calc(${at(from)}% + 1.5px)`, width: `calc(${at(part.end_seconds) - at(from)}% - 3px)` };
+          return (
+            <li key={part.part_number} className="contents">
+              {part.task_id && !current
+                ? <Link href={`/tasks/${part.task_id}`} title={description} aria-label={description} className={className} style={style}>{body}</Link>
+                : <span title={description} aria-label={description} aria-current={current ? "page" : undefined} className={className} style={style}>{body}</span>}
+            </li>
+          );
+        })}
+        {active && (
+          <li
+            aria-label={labels.next}
+            className="absolute inset-y-0 right-0 flex items-center justify-center overflow-hidden rounded-md border border-dashed border-foreground/25 bg-[repeating-linear-gradient(135deg,transparent_0_5px,var(--color-muted)_5px_10px)] px-1.5 text-[11px] text-muted-foreground"
+            style={{ left: `calc(${at(lastEnd)}% + 3px)` }}
+          >
+            <span className="truncate">{labels.next}</span>
+          </li>
+        )}
+      </ol>
+      <div className="mt-1.5 flex justify-between text-[11px] tabular-nums text-muted-foreground">
+        <span>{streamClock(start)}</span>
+        {active
+          ? <span className="flex items-center gap-1 font-medium text-foreground"><span aria-hidden className="size-1.5 rounded-full bg-red-600" />{labels.now}</span>
+          : <span>{streamClock(end)}</span>}
+      </div>
+    </div>
   );
 }

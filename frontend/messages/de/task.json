@@ -310,7 +310,6 @@
   "liveFrom": "Live von {channel}",
   "liveSource": "Live geschnitten",
   "liveSession": {
-    "following": "Live-Schnitt läuft",
     "status": {
       "active": "Live-Schnitt läuft",
       "ended": "Stream beendet",
@@ -338,6 +337,11 @@
     "part": "Teil {number} · {start}–{end}",
     "clips": "{count, plural, one {# Clip} other {# Clips}}",
     "partFailed": "fehlgeschlagen",
-    "partWorking": "in Arbeit…"
+    "partWorking": "in Arbeit…",
+    "live": "Live",
+    "nextBatch": "Nächste Runde",
+    "now": "Jetzt",
+    "partShort": "Teil {number}",
+    "summary": "{parts, plural, one {# Teil} other {# Teile}} · {clips, plural, one {# Clip} other {# Clips}} bisher"
   }
 }

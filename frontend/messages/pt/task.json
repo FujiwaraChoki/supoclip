@@ -310,7 +310,6 @@
   "liveFrom": "Ao vivo de {channel}",
   "liveSource": "Cortado ao vivo",
   "liveSession": {
-    "following": "Cortando ao vivo",
     "status": {
       "active": "Cortando ao vivo",
       "ended": "A live terminou",
@@ -338,6 +337,11 @@
     "part": "Parte {number} · {start}–{end}",
     "clips": "{count, plural, one {# clipe} other {# clipes}}",
     "partFailed": "falhou",
-    "partWorking": "processando…"
+    "partWorking": "processando…",
+    "live": "Ao vivo",
+    "nextBatch": "Próximo lote",
+    "now": "Agora",
+    "partShort": "Parte {number}",
+    "summary": "{parts, plural, one {# parte} other {# partes}} · {clips, plural, one {# clipe} other {# clipes}} até agora"
   }
 }

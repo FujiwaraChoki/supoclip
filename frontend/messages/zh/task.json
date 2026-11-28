@@ -310,7 +310,6 @@
   "liveFrom": "来自 {channel} 的直播",
   "liveSource": "直播剪辑",
   "liveSession": {
-    "following": "正在直播剪辑",
     "status": {
       "active": "正在直播剪辑",
       "ended": "直播已结束",
@@ -338,6 +337,11 @@
     "part": "第 {number} 部分 · {start}–{end}",
     "clips": "{count, plural, other {# 个片段}}",
     "partFailed": "失败",
-    "partWorking": "处理中…"
+    "partWorking": "处理中…",
+    "live": "直播中",
+    "nextBatch": "下一批",
+    "now": "现在",
+    "partShort": "第 {number} 部分",
+    "summary": "{parts, plural, other {# 个部分}} · 目前 {clips, plural, other {# 个片段}}"
   }
 }

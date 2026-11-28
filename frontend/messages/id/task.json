@@ -310,7 +310,6 @@
   "liveFrom": "Live dari {channel}",
   "liveSource": "Diklip saat live",
   "liveSession": {
-    "following": "Mengklip live",
     "status": {
       "active": "Mengklip live",
       "ended": "Stream selesai",
@@ -338,6 +337,11 @@
     "part": "Bagian {number} · {start}–{end}",
     "clips": "{count, plural, other {# klip}}",
     "partFailed": "gagal",
-    "partWorking": "diproses…"
+    "partWorking": "diproses…",
+    "live": "Live",
+    "nextBatch": "Batch berikutnya",
+    "now": "Sekarang",
+    "partShort": "Bagian {number}",
+    "summary": "{parts, plural, other {# bagian}} · {clips, plural, other {# klip}} sejauh ini"
   }
 }
