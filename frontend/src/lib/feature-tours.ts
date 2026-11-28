@@ -40,7 +40,7 @@ export type TourStep = {
 };
 
 /** Feature flags a tour can wait for (`GET /api/feature-flags`). */
-export type TourFlag = "dynamic_edits";
+export type TourFlag = "dynamic_edits" | "live_clipping";
 
 export type FeatureTour = {
   id: string;
@@ -112,6 +112,18 @@ export const FEATURE_TOURS: readonly FeatureTour[] = [
       { path: "/settings", target: "settings-captions", message: "captions", side: "bottom" },
       { path: "/settings", requires: "usage", target: "settings-plan", message: "plan", side: "top" },
       { path: "/", target: "composer-source", message: "finish", side: "bottom" },
+    ],
+  },
+  {
+    // Live clipping for Creator plans. The hint it points at renders only for accounts that can
+    // clip live (Creator/Team, flag on), so nobody else is toured into an upsell.
+    // Update releasedAt to the day the live_clipping flag opens on web.
+    id: "live-clipping",
+    releasedAt: "2026-11-28T00:00:00Z",
+    requiresFlag: "live_clipping",
+    steps: [
+      { target: "live-hint", message: "intro", side: "bottom", intro: true },
+      { target: "live-hint", message: "follow", side: "bottom" },
     ],
   },
   {

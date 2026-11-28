@@ -375,11 +375,13 @@ def log_youtube_attempt(
 
 def base_proxy_params(task_id: Optional[str] = None, video_id: Optional[str] = None, config=None,
                       *, session_id: Optional[str] = None,
-                      country: Optional[str] = None) -> dict[str, Any]:
+                      country: Optional[str] = None, allow_direct: bool = False) -> dict[str, Any]:
     """yt-dlp params that send metadata and media through the proxy.
 
     Player clients are left at yt-dlp defaults. PO tokens are requested only
-    when a bgutil HTTP provider URL is configured.
+    when a bgutil HTTP provider URL is configured. ``allow_direct`` leaves the
+    proxy out when none is configured (a part of a live stream on a self-hosted
+    server); otherwise an empty ``YOUTUBE_PROXY_URL`` is an error as before.
     """
     runtime = trial_config(config or get_config())
     session = session_id or sticky_session_id(task_id, video_id)
@@ -387,7 +389,6 @@ def base_proxy_params(task_id: Optional[str] = None, video_id: Optional[str] = N
         getattr(runtime, "youtube_proxy_country", "") if country is None else country
     )
     params: dict[str, Any] = {
-        "proxy": render_proxy_url(runtime.youtube_proxy_url, session, country),
         # yt-dlp treats 0.0.0.0 as "force IPv4" (the -4 flag).
         "source_address": "0.0.0.0",
         "socket_timeout": 30,
@@ -406,6 +407,8 @@ def base_proxy_params(task_id: Optional[str] = None, video_id: Optional[str] = N
             "Accept-Language": "en-US,en;q=0.9",
         },
     }
+    if (getattr(runtime, "youtube_proxy_url", "") or "").strip() or not allow_direct:
+        params["proxy"] = render_proxy_url(runtime.youtube_proxy_url, session, country)
     pot_url = (getattr(runtime, "youtube_pot_provider_url", "") or "").strip()
     if pot_url:
         params["extractor_args"] = {
@@ -445,9 +448,12 @@ def download_options(
     seen: Optional[dict[str, int]] = None,
     session_id: Optional[str] = None,
     country: Optional[str] = None,
+    allow_direct: bool = False,
 ) -> dict[str, Any]:
     """Options for a native yt-dlp download. Never sets ``download_ranges``."""
-    options = base_proxy_params(task_id, video_id, session_id=session_id, country=country)
+    options = base_proxy_params(
+        task_id, video_id, session_id=session_id, country=country, allow_direct=allow_direct,
+    )
     options["_youtube_deadline"] = time.monotonic() + max(
         30, getattr(get_config(), "youtube_proxy_timeout_seconds", 300)
     )
@@ -494,7 +500,7 @@ def is_transient_proxy_error(exc: BaseException) -> bool:
 @trial_retry
 def _with_proxy_retry(operation: Callable, *, task_id: Optional[str], video_id: str,
                       budget: ByteBudget, cleanup: Callable[[], None],
-                      deadline: Optional[float] = None):
+                      deadline: Optional[float] = None, allow_direct: bool = False):
     """One transport and one region retry stay inside the initial budget plus 60s.
 
     Each attempt re-extracts metadata, keeping signed URLs and all fragments on
@@ -514,7 +520,7 @@ def _with_proxy_retry(operation: Callable, *, task_id: Optional[str], video_id: 
     for attempt in range(3):
         options = download_options(
             task_id, video_id, budget,
-            session_id=session, country=country,
+            session_id=session, country=country, allow_direct=allow_direct,
         )
         options["_youtube_deadline"] = min(
             overall_deadline, retry_deadline if attempt else time.monotonic() + initial_seconds
@@ -1392,6 +1398,211 @@ def _download_audio_attempt(
         raise
 
 
+# ------------------------------------------------------------- live DVR
+#
+# A live YouTube video has no complete HLS playlist, but its DASH formats are
+# addressable by segment number from the first second of the stream: segment
+# ``sq=N`` covers ``[N*d, (N+1)*d)`` where ``d`` is the format's target duration
+# (``X-Head-Seqnum`` on the base URL says how far it goes). yt-dlp exposes these
+# formats with ``live_from_start``. A part of the stream is the segments under
+# it, fetched by yt-dlp's own HTTP client (through the proxy) and remuxed once
+# locally, because each segment repeats the MP4 header.
+
+LIVE_DVR_STATUSES = frozenset({"is_live", "post_live"})
+
+
+class LiveDvrUnavailable(YouTubeDownloadError):
+    """The stream does not keep (or no longer keeps) the requested part."""
+
+
+def is_live_info(info: dict) -> bool:
+    return info.get("live_status") in LIVE_DVR_STATUSES
+
+
+def dvr_formats(info: dict) -> list[dict]:
+    """Formats addressable by segment number (``live_from_start``)."""
+    return [
+        fmt for fmt in info.get("formats") or []
+        if fmt.get("target_duration") and fmt.get("url") and "dash" in str(fmt.get("protocol") or "")
+    ]
+
+
+def _with_query(url: str, **params: Any) -> str:
+    from yt_dlp.utils import update_url_query
+
+    return update_url_query(url, {key: str(value) for key, value in params.items()})
+
+
+def dvr_head_sequence(fmt: dict, options: dict) -> int:
+    """The newest segment number the stream has published."""
+    from yt_dlp.networking import HEADRequest
+
+    with _proxy_client(options) as ydl:
+        response = ydl.urlopen(HEADRequest(fmt["url"], headers=fmt.get("http_headers") or {}))
+        try:
+            value = response.headers.get("X-Head-Seqnum")
+        finally:
+            response.close()
+    try:
+        head = int(value)
+    except (TypeError, ValueError):
+        raise LiveDvrUnavailable("The live stream did not say how far its recording goes") from None
+    if head <= 0:
+        raise LiveDvrUnavailable("The live stream has no recorded segments yet")
+    return head
+
+
+def _dvr_segment_available(fmt: dict, options: dict, sequence: int) -> bool:
+    from yt_dlp.networking import HEADRequest
+    from yt_dlp.networking.exceptions import HTTPError
+
+    try:
+        with _proxy_client(options) as ydl:
+            response = ydl.urlopen(HEADRequest(
+                _with_query(fmt["url"], sq=sequence), headers=fmt.get("http_headers") or {},
+            ))
+            response.close()
+        return True
+    except HTTPError as exc:
+        if exc.status in (403, 404, 410):
+            return False
+        raise
+
+
+def live_dvr_fragments(
+    fmt: dict, start: float, end: float, *, head: int,
+) -> tuple[list[dict], float, float]:
+    """Segments of one DVR format under ``[start, end)`` and their timeline bounds.
+
+    The newest segment (``head``) may still be growing, so a part ends before it.
+    """
+    duration = float(fmt["target_duration"])
+    if duration <= 0:
+        raise LiveDvrUnavailable("The live stream reported no segment length")
+    first = max(0, int(math.floor(start / duration)))
+    last = min(int(head), int(math.ceil(end / duration)))
+    if last <= first:
+        raise LiveDvrUnavailable(
+            f"The live stream's recording does not reach {start:.0f}s yet ({head * duration:.0f}s so far)"
+        )
+    fragments = [
+        {
+            "url": _with_query(fmt["url"], sq=index),
+            "start_time": index * duration,
+            "end_time": (index + 1) * duration,
+            "duration": duration,
+        }
+        for index in range(first, last)
+    ]
+    return fragments, first * duration, last * duration
+
+
+def _remux_dvr_download(path: Path) -> Path:
+    """One clean MP4 from concatenated live segments (each repeats the header).
+
+    yt-dlp does the same after a ``--live-from-start`` download
+    (FFmpegFixupDuplicateMoovPP). Local file only.
+    """
+    fixed = path.with_name(path.stem + ".dvr" + path.suffix)
+    command = [
+        "ffmpeg", "-y", "-nostdin", "-v", "error", "-i", str(path),
+        "-map", "0", "-dn", "-ignore_unknown", "-c", "copy", str(fixed),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True)
+    if result.returncode != 0 or not fixed.exists() or fixed.stat().st_size <= 0:
+        fixed.unlink(missing_ok=True)
+        raise YouTubeDownloadError(
+            "Could not remux the live segments locally: " + redact_secrets((result.stderr or "")[-400:])
+        )
+    fixed.replace(path)
+    return path
+
+
+def _download_dvr_format(
+    options: dict, url: str, video_id: str, fmt: dict, stem: Path, start: float, end: float, head: int,
+) -> tuple[Path, float, float]:
+    fragments, media_start, media_end = live_dvr_fragments(fmt, start, end, head=head)
+    if not _dvr_segment_available(fmt, options, int(round(media_start / float(fmt["target_duration"])))):
+        raise LiveDvrUnavailable(
+            "This stream doesn't let viewers rewind that far, so that part can't be clipped"
+        )
+    path = native_download_format(
+        options, url, video_id, dict(fmt, protocol="http_dash_segments"), stem, fragments,
+    )
+    return _remux_dvr_download(path), media_start, media_end
+
+
+def _live_info(url: str, options: dict) -> dict:
+    """Metadata with DVR formats when the video is live (a no-op for any other video)."""
+    return extract_video_info(url, dict(options, live_from_start=True))
+
+
+def _download_live_audio(
+    info: dict, url: str, video_id: str, start: float, end: float, dest_stem: Path,
+    options: dict, counter: ByteBudget, before: int, task_id: Optional[str],
+) -> tuple[Path, float, float]:
+    formats = dvr_formats(info)
+    source_language = _video_language(info)
+    fmt = pick_audio_format(formats, source_language=source_language)
+    if fmt is None:
+        raise LiveDvrUnavailable("This live stream has no rewindable audio")
+    options["_youtube_section_clock"] = _SectionTransferClock(
+        deadline=min(options["_youtube_deadline"], time.monotonic() + _SECTION_IDLE_SECONDS),
+        hard_deadline=options["_youtube_overall_deadline"],
+    )
+    head = dvr_head_sequence(fmt, options)
+    path, media_start, media_end = _download_dvr_format(
+        options, url, video_id, fmt, dest_stem, start, end, head,
+    )
+    nbytes = _account_file(path, counter, before)
+    log_youtube_attempt(
+        provider=YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY, video_id=video_id, kind="live_audio",
+        outcome="success", nbytes=nbytes, task_id=task_id,
+    )
+    return path, media_start, media_end
+
+
+def _download_live_section(
+    info: dict, url: str, video_id: str, start: float, end: float, dest: Path, work: Path,
+    options: dict, counter: ByteBudget, before: int, task_id: Optional[str],
+) -> tuple[Path, float, float]:
+    formats = dvr_formats(info)
+    source_language = _video_language(info)
+    video_fmt = pick_video_format(formats)
+    audio_fmt = pick_audio_format(formats, modest=False, source_language=source_language)
+    if not video_fmt or not audio_fmt:
+        raise LiveDvrUnavailable("This live stream has no rewindable video at or below 1080p")
+    work.mkdir(parents=True, exist_ok=True)
+    options["_youtube_section_clock"] = _SectionTransferClock(
+        deadline=min(options["_youtube_deadline"], time.monotonic() + _SECTION_IDLE_SECONDS),
+        hard_deadline=options["_youtube_overall_deadline"],
+    )
+    head = min(dvr_head_sequence(video_fmt, options), dvr_head_sequence(audio_fmt, options))
+    video_path, video_start, video_end = _download_dvr_format(
+        options, url, video_id, video_fmt, work / "video", start, end, head,
+    )
+    audio_path, audio_start, audio_end = _download_dvr_format(
+        options, url, video_id, audio_fmt, work / "audio", start, end, head,
+    )
+    media_start = max(video_start, audio_start)
+    media_end = min(video_end, audio_end)
+    if media_end - media_start < 0.5:
+        raise PartialDownloadUnavailable("Live audio and video segments do not overlap")
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    _mux_local_window(
+        video_path, audio_path, dest,
+        video_offset=max(0.0, media_start - video_start),
+        audio_offset=max(0.0, media_start - audio_start),
+        duration=media_end - media_start,
+    )
+    _account_file(dest, counter, counter.snapshot())
+    log_youtube_attempt(
+        provider=YOUTUBE_DOWNLOAD_PROVIDER_YTDLP_PROXY, video_id=video_id, kind="live_section",
+        outcome="success", nbytes=counter.snapshot() - before, task_id=task_id,
+    )
+    return dest, media_start, media_end
+
+
 def download_audio_section(
     url: str,
     video_id: str,
@@ -1401,20 +1612,23 @@ def download_audio_section(
     *,
     task_id: Optional[str] = None,
     budget: Optional[ByteBudget] = None,
+    live: bool = False,
 ) -> tuple[Path, float, float]:
     """Audio of one time window only, for a picked part of a long video.
 
     Returns the file and its original-timeline bounds (whole HLS fragments,
     so it may start a few seconds before ``start``). Formats without timed
-    fragments raise ``PartialDownloadUnavailable``.
+    fragments raise ``PartialDownloadUnavailable``. ``live``: a part of a live
+    stream, read from the live DVR while the video is still live.
     """
     counter = budget or ByteBudget(get_config().youtube_download_max_bytes)
     return _with_proxy_retry(
         lambda options: _download_audio_section_attempt(
             url, video_id, start, end, dest_stem, task_id=task_id, budget=counter, options=options,
+            live=live,
         ),
         task_id=task_id, video_id=video_id, budget=counter,
-        cleanup=lambda: _discard_output(dest_stem),
+        cleanup=lambda: _discard_output(dest_stem), allow_direct=live,
     )
 
 
@@ -1428,11 +1642,16 @@ def _download_audio_section_attempt(
     task_id: Optional[str],
     budget: ByteBudget,
     options: dict[str, Any],
+    live: bool = False,
 ) -> tuple[Path, float, float]:
     counter = budget
     before = counter.snapshot()
     try:
-        info = extract_video_info(url, options)
+        info = _live_info(url, options)
+        if is_live_info(info) and dvr_formats(info):
+            return _download_live_audio(
+                info, url, video_id, start, end, dest_stem, options, counter, before, task_id,
+            )
         formats = info.get("formats") or []
         source_language = _video_language(info)
         fmt = pick_hls_audio_format(
@@ -1489,15 +1708,16 @@ def download_section_file(
     task_id: Optional[str] = None,
     budget: Optional[ByteBudget] = None,
     fallback: Optional[str] = None,
+    live: bool = False,
 ) -> tuple[Path, float, float]:
     counter = budget or ByteBudget(get_config().youtube_download_max_bytes)
     return _with_proxy_retry(
         lambda options: _download_section_attempt(
             url, video_id, start, end, dest, task_id=task_id, budget=counter,
-            fallback=fallback, options=options,
+            fallback=fallback, options=options, live=live,
         ),
         task_id=task_id, video_id=video_id, budget=counter,
-        cleanup=lambda: dest.unlink(missing_ok=True),
+        cleanup=lambda: dest.unlink(missing_ok=True), allow_direct=live,
     )
 
 
@@ -1512,16 +1732,23 @@ def _download_section_attempt(
     budget: ByteBudget,
     fallback: Optional[str],
     options: dict[str, Any],
+    live: bool = False,
 ) -> tuple[Path, float, float]:
     """Download one time window. Returns the file and its original-timeline bounds.
 
     Media bytes go through yt-dlp. ffmpeg only trims and muxes local files.
+    A video that is live (or just ended and still processing) is read from its
+    DVR by segment number; anything else is unchanged.
     """
     counter = budget
     before = counter.snapshot()
     work = dest.parent / f".parts-{dest.stem}"
     try:
-        info = extract_video_info(url, options)
+        info = _live_info(url, options)
+        if is_live_info(info) and dvr_formats(info):
+            return _download_live_section(
+                info, url, video_id, start, end, dest, work, options, counter, before, task_id,
+            )
         formats = info.get("formats") or []
         source_language = _video_language(info)
         original_audio = _original_audio_resolution(formats, source_language)

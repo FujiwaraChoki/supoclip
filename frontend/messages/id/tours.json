@@ -151,5 +151,15 @@
       "body": "Setiap zoom dan suara adalah satu blok di sini, dan jalur musik menunjukkan musik di bawah suara. Seret blok untuk memindahkannya, klik dua kali untuk mengubahnya, atau pilih lalu tekan Delete. Klik dua kali di tempat kosong untuk menambah suara."
     }
   },
-  "skip": "Lewati"
+  "skip": "Lewati",
+  "live-clipping": {
+    "intro": {
+      "title": "Klip stream-mu selagi live",
+      "body": "Tempel tautan channel Twitch, Kick, atau YouTube-mu saat sedang streaming. SupoClip mengklip bagian terbaru, dari 15 menit sampai 2 jam terakhir, tanpa menunggu VOD."
+    },
+    "follow": {
+      "title": "Atau biarkan terus mengklip",
+      "body": "Nyalakan “Terus klip setiap 30 mnt” dan batch klip baru datang setiap setengah jam sampai stream selesai. Setiap batch hanya memakai menit barunya, dan kamu bisa menghentikannya kapan saja dari proyek."
+    }
+  }
 }

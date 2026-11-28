@@ -17,7 +17,8 @@
     "minutes": "{length} of video every month",
     "hd": "720p clips",
     "fullHd": "Full HD 1080p clips",
-    "scheduling": "Auto-post and schedule clips to YouTube and TikTok"
+    "scheduling": "Auto-post and schedule clips to YouTube and TikTok",
+    "live": "Clip streams while they're live"
   },
   "runtime": {
     "minutes": "{count} min",
@@ -105,6 +106,16 @@
       "eyebrow": "Your free clip",
       "title": "{count, plural, one {Unlock the other clip} other {Unlock the other # clips}}",
       "body": "They're already found and waiting. Pick a plan and they're made right here, in this project."
+    },
+    "live": {
+      "eyebrow": "Live clipping · Creator",
+      "title": "Clip streams while they're live",
+      "body": "Creator clips YouTube, Twitch and Kick streams as they happen: the newest part now, or a new batch every half hour until the stream ends.",
+      "perks": {
+        "0": "Clip the newest part of a stream that's still going",
+        "1": "Keep clipping while live: new clips every 30 minutes",
+        "2": "Only the minutes of stream you clip are used"
+      }
     }
   },
   "illustration": {

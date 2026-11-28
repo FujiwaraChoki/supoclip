@@ -306,5 +306,29 @@
     "approxTiming": "Dieses Video hatte keine Wort-Zeitmarken, daher folgen Untertitel und Effekte ungefähren Zeiten.",
     "simplified": "Einige Effekte wurden in diesem Clip vereinfacht."
   },
-  "sourceRange": "Teil {start}–{end}"
+  "sourceRange": "Teil {start}–{end}",
+  "liveFrom": "Live von {channel}",
+  "liveSource": "Live geschnitten",
+  "liveSession": {
+    "title": "{channel} wird live geschnitten",
+    "titleStopped": "{channel} live geschnitten",
+    "nextPart": "nächster Teil gegen {time}",
+    "nextPartSoon": "nächster Teil gleich",
+    "part": "Teil {number}",
+    "thisStream": "diesem Stream",
+    "stopReason": {
+      "user": "von dir gestoppt",
+      "ended": "Stream beendet",
+      "minutes": "keine Minuten mehr diesen Monat",
+      "max_hours": "12-Stunden-Grenze erreicht",
+      "plan": "braucht Creator",
+      "errors": "Stream nicht erreichbar",
+      "error": "nächster Teil konnte nicht starten",
+      "disabled": "pausiert"
+    },
+    "stop": "Stoppen",
+    "stopped": "Live-Schnitt gestoppt",
+    "stopFailed": "Live-Schnitt konnte nicht gestoppt werden. Versuch es noch einmal.",
+    "partsLabel": "Teile dieses Streams"
+  }
 }

@@ -2380,4 +2380,11 @@ class ClipEditingMixin:
             ),
             # Only a task made from a picked part of its video carries this.
             **({SOURCE_RANGE_KEY: parsed[SOURCE_RANGE_KEY]} if SourceRange.from_metadata(parsed) else {}),
+            # A part of a stream that was live when the task was made (live_source.py).
+            **({"live": _public_live(parsed["live"])} if isinstance(parsed.get("live"), dict) else {}),
         }
+
+
+def _public_live(live: Dict[str, Any]) -> Dict[str, Any]:
+    keys = ("platform", "channel", "channel_url", "started_at", "captured_at", "final", "session_id", "part_number")
+    return {key: live[key] for key in keys if key in live}

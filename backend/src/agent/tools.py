@@ -284,6 +284,10 @@ async def get_overview(ctx: ToolContext, _input: dict) -> ToolOutcome:
     except AgentAPIError:
         workflows = {"workflows": []}
     memories = await store.list_memories(ctx.user_id)
+    try:
+        live_flag = bool(((await ctx.api.get("/feature-flags")).get("flags") or {}).get("live_clipping"))
+    except AgentAPIError:
+        live_flag = False
     overview = {
         "plan": billing.get("plan"),
         "workspace": billing.get("team_name") or ("team" if billing.get("workspace_type") == "team" else "personal"),
@@ -302,6 +306,10 @@ async def get_overview(ctx: ToolContext, _input: dict) -> ToolOutcome:
         ],
         "connected_accounts": [_account_summary(c) for c in connections],
         "workflows": [w["id"] for w in workflows.get("workflows", []) if w.get("available")],
+        # Clipping streams while they're live: available, creator_only (another plan), or unavailable.
+        "live_clipping": (
+            ("available" if billing.get("can_clip_live") else "creator_only") if live_flag else "unavailable"
+        ),
         "remembered": [m["note"] for m in memories],
     }
     return ToolOutcome(overview)
@@ -559,6 +567,12 @@ async def create_project(ctx: ToolContext, data: dict) -> ToolOutcome:
         body["source"]["start_seconds"] = _int(data["start_seconds"], "start_seconds", low=0, high=86400)
     if data.get("end_seconds") is not None:
         body["source"]["end_seconds"] = _int(data["end_seconds"], "end_seconds", low=1, high=86400)
+    live_minutes = _int(data.get("live_minutes"), "live_minutes", low=1, high=360)
+    keep_clipping = data.get("keep_clipping") is True
+    if live_minutes is not None or keep_clipping:
+        if "start_seconds" in body["source"] or "end_seconds" in body["source"]:
+            raise ToolError("Use live_minutes/keep_clipping for a live stream, or start/end seconds for a video, not both.")
+        body["source"]["live"] = {"window_seconds": (live_minutes or 30) * 60, "follow": keep_clipping}
     if data.get("clip_length") is not None:
         body["clip_length"] = _choice(data["clip_length"], "clip_length", CLIP_LENGTHS)
     if data.get("caption_style") is not None:
@@ -595,12 +609,17 @@ async def create_project(ctx: ToolContext, data: dict) -> ToolOutcome:
         except AgentAPIError:
             project_title = None
     duplicate = "already" in str(created.get("message", "")).lower()
+    live = created.get("live")
     return ToolOutcome(
         {
             "project_id": project_id,
             "title": project_title,
             "status": "queued",
             **({"note": "This video was already being clipped; this is that project."} if duplicate else {}),
+            **({"live_part": {k: live[k] for k in ("channel", "start_seconds", "end_seconds", "elapsed_seconds") if k in live}}
+               if isinstance(live, dict) else {}),
+            **({"keep_clipping": "A new batch of clips every 30 minutes while the stream is live, each its own project."}
+               if created.get("live_session_id") else {}),
             "next": "Processing takes a few minutes. Use when_project_finishes to act on the clips once they're ready.",
         },
         card={"type": "project_started", "project": {"id": project_id, "title": project_title, "workflow": workflow}},
@@ -1236,7 +1255,9 @@ TOOLS: list[Tool] = [
         "takes several minutes. Workflows: highlights (best standalone clips, default), series (Part 1..N of one "
         "story), topic (every strong moment about `topic`), recap (one clip of the main points), trailer (one "
         "teaser that hides the payoff). clip_length: highlights/topic per clip auto 15-60s, short 15-30s, medium "
-        "30-60s, long 60-120s; series per part; recap/trailer total length.",
+        "30-60s, long 60-120s; series per part; recap/trailer total length. A stream that is live right now "
+        "(Creator plan): live_minutes clips its newest part, keep_clipping keeps clipping until it ends; without "
+        "either, a live link comes back saying it's live so you can ask which.",
         _schema(
             {
                 "url": {"type": "string"},
@@ -1252,6 +1273,8 @@ TOOLS: list[Tool] = [
                 "title": {"type": "string"},
                 "start_seconds": {"type": "integer", "description": "Clip only part of a long video (highlights only)."},
                 "end_seconds": {"type": "integer"},
+                "live_minutes": {"type": "integer", "description": "Live stream only: clip its newest N minutes (1-360)."},
+                "keep_clipping": {"type": "boolean", "description": "Live stream only: keep clipping until the stream ends."},
             },
             ["url"],
         ),

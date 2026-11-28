@@ -36,6 +36,7 @@ INSTAGRAM_PUBLISHING = "instagram_publishing"
 DYNAMIC_EDITS = "dynamic_edits"
 CREATOR_AGENT = "creator_agent"
 PEBBLE_ONBOARDING = "pebble_onboarding"
+LIVE_CLIPPING = "live_clipping"
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,7 @@ DEFAULT_FLAGS: dict[str, FeatureFlag] = {
     DYNAMIC_EDITS: FeatureFlag(DYNAMIC_EDITS),
     CREATOR_AGENT: FeatureFlag(CREATOR_AGENT),
     PEBBLE_ONBOARDING: FeatureFlag(PEBBLE_ONBOARDING),
+    LIVE_CLIPPING: FeatureFlag(LIVE_CLIPPING),
 }
 
 _cache: Optional[tuple[float, dict[str, FeatureFlag]]] = None

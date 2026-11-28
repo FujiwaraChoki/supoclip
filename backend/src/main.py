@@ -241,6 +241,7 @@ def create_app(
     from .api.routes.onboarding import router as onboarding_router
     from .api.routes.email_preferences import router as email_preferences_router
     from .api.routes.feature_flags import router as feature_flags_router
+    from .api.routes.live_sessions import router as live_sessions_router
     from .api.routes.fx import router as fx_router
     from .api.routes.stripe_cancellations import router as stripe_cancellations_router
     from .api.routes.teams import router as teams_router
@@ -258,6 +259,7 @@ def create_app(
     app.include_router(onboarding_router)
     app.include_router(email_preferences_router)
     app.include_router(feature_flags_router)
+    app.include_router(live_sessions_router)
     app.include_router(fx_router)
     app.include_router(stripe_cancellations_router)
     app.include_router(teams_router)

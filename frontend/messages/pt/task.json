@@ -306,5 +306,29 @@
     "approxTiming": "Este vídeo não tinha tempo por palavra, então legendas e efeitos seguem um tempo aproximado.",
     "simplified": "Alguns efeitos foram simplificados neste clipe."
   },
-  "sourceRange": "Parte {start}–{end}"
+  "sourceRange": "Parte {start}–{end}",
+  "liveFrom": "Ao vivo de {channel}",
+  "liveSource": "Cortado ao vivo",
+  "liveSession": {
+    "title": "Cortando {channel} ao vivo",
+    "titleStopped": "{channel} cortado ao vivo",
+    "nextPart": "próxima parte por volta das {time}",
+    "nextPartSoon": "próxima parte em instantes",
+    "part": "Parte {number}",
+    "thisStream": "esta live",
+    "stopReason": {
+      "user": "parado por você",
+      "ended": "a live terminou",
+      "minutes": "sem minutos este mês",
+      "max_hours": "limite de 12 horas",
+      "plan": "requer Creator",
+      "errors": "live inacessível",
+      "error": "a próxima parte não começou",
+      "disabled": "pausado"
+    },
+    "stop": "Parar",
+    "stopped": "Corte ao vivo parado",
+    "stopFailed": "Não foi possível parar o corte ao vivo. Tente de novo.",
+    "partsLabel": "Partes desta live"
+  }
 }

@@ -306,5 +306,29 @@
     "approxTiming": "This video had no word timing, so captions and effects follow approximate timing.",
     "simplified": "Some effects were simplified for this clip."
   },
-  "sourceRange": "Part {start}–{end}"
+  "sourceRange": "Part {start}–{end}",
+  "liveFrom": "Live from {channel}",
+  "liveSource": "Clipped live",
+  "liveSession": {
+    "title": "Clipping {channel} live",
+    "titleStopped": "Clipped {channel} live",
+    "nextPart": "next part around {time}",
+    "nextPartSoon": "next part soon",
+    "part": "Part {number}",
+    "thisStream": "this stream",
+    "stopReason": {
+      "user": "stopped by you",
+      "ended": "stream ended",
+      "minutes": "out of minutes this month",
+      "max_hours": "12-hour limit reached",
+      "plan": "needs Creator",
+      "errors": "stream unreachable",
+      "error": "next part couldn't start",
+      "disabled": "paused"
+    },
+    "stop": "Stop",
+    "stopped": "Live clipping stopped",
+    "stopFailed": "Couldn't stop live clipping. Try again.",
+    "partsLabel": "Parts of this stream"
+  }
 }

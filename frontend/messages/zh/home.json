@@ -534,5 +534,24 @@
   "creatorTag": "Creator",
   "agentLapsed": "你的 Agent 对话都已保存。",
   "agentTrialEnded": "你的免费 Agent 消息已用完。",
-  "agentBackWithCreator": "升级 Creator 继续使用"
+  "agentBackWithCreator": "升级 Creator 继续使用",
+  "livePanel": {
+    "title": "{channel} 正在直播",
+    "windowLabel": "剪多少",
+    "wholeStream": "全部",
+    "follow": "每 {interval} 持续剪辑",
+    "locked": "剪辑直播是 Creator 的功能。",
+    "cancel": "取消",
+    "seeCreator": "了解 Creator",
+    "submitOnce": "剪最近 {duration}",
+    "submitAll": "全部剪辑",
+    "submitFollow": "开始直播剪辑",
+    "tooNew": "这场直播刚开始，请一分钟后再试。",
+    "platforms": {
+      "youtube": "这场 YouTube 直播",
+      "twitch": "这场 Twitch 直播",
+      "kick": "这场 Kick 直播"
+    }
+  },
+  "liveHint": "正在直播？粘贴你的频道链接，边直播边剪辑。"
 }

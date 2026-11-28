@@ -74,6 +74,14 @@ class SourceRange:
     start: int
     end: float
     source_duration: Optional[float] = None
+    # Captured from a stream that was still live (live_source.py): the recording
+    # kept growing after ``source_duration`` was measured, so that length is a
+    # floor, never the end of the video.
+    live: bool = False
+    # Continuous live clipping: the part overlaps the previous one a little so a
+    # moment at the boundary isn't cut in half. Moments that end before this
+    # second were already in the previous part and are dropped.
+    fresh_after: Optional[float] = None
 
     @property
     def length(self) -> float:
@@ -83,6 +91,10 @@ class SourceRange:
         payload: Dict[str, Any] = {"start_seconds": self.start, "end_seconds": self.end}
         if self.source_duration:
             payload["source_duration_seconds"] = self.source_duration
+        if self.live:
+            payload["live"] = True
+        if self.fresh_after is not None:
+            payload["fresh_after_seconds"] = self.fresh_after
         return payload
 
     @classmethod
@@ -102,7 +114,12 @@ class SourceRange:
             duration = float(duration) if duration is not None else None
         except (TypeError, ValueError):
             duration = None
-        return cls(start, end, duration)
+        fresh_after = raw.get("fresh_after_seconds")
+        try:
+            fresh_after = float(fresh_after) if fresh_after is not None else None
+        except (TypeError, ValueError):
+            fresh_after = None
+        return cls(start, end, duration, live=raw.get("live") is True, fresh_after=fresh_after)
 
     def cache_suffix(self) -> str:
         """Appended to cache and checkpoint inputs; whole-video keys never carry it."""
@@ -155,11 +172,15 @@ def resolve_source_range(
     requested: Optional[RequestedRange],
     duration: float,
     max_duration: Optional[float],
+    *,
+    keep_whole: bool = False,
 ) -> Optional[SourceRange]:
     """Validate a requested part against the real duration and the plan limit.
 
     Returns None when nothing was requested or the part is the whole video
     (which then processes exactly like a request without a range).
+    ``keep_whole`` keeps the range even then: a live recording keeps growing,
+    so "everything so far" is still a fixed part of it.
     """
     if requested is None:
         return None
@@ -190,7 +211,7 @@ def resolve_source_range(
             f"{_minutes(max_duration)} minutes per video. Pick a shorter part. No minutes were used.",
             **detail,
         )
-    if start <= 0 and end >= duration - 0.5:
+    if start <= 0 and end >= duration - 0.5 and not keep_whole:
         return None
     return SourceRange(start, end, float(duration))
 
@@ -247,6 +268,17 @@ def shift_segment(segment: Dict[str, Any], offset: float) -> Dict[str, Any]:
         if ranges:
             shifted[key] = [[float(start) + offset, float(end) + offset] for start, end in ranges]
     return shifted
+
+
+def segment_end_seconds(segment: Dict[str, Any]) -> float:
+    """Where a selected segment ends, in seconds (its last kept range, else ``end_time``)."""
+    from .youtube_source import parse_clock
+
+    ends = [float(end) for key in ("keep_ranges", "source_ranges") for _start, end in (segment.get(key) or [])]
+    if ends:
+        return max(ends)
+    parsed = parse_clock(segment.get("end_time"))
+    return float(parsed) if parsed is not None else 0.0
 
 
 def cut_audio_range(source: Path, dest: Path, source_range: SourceRange, *, offset: float = 0.0) -> Path:

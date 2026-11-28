@@ -452,7 +452,7 @@ def test_stream_part_downloads_audio_for_the_range_without_the_plan_cap(monkeypa
     )
     assert calls == [{
         "audio": True, "ranges": [(3600.0, 10800.0)], "expected_duration": EIGHT_HOURS,
-        "max_duration": None, "task_id": "task1", "operation": "job",
+        "max_duration": None, "task_id": "task1", "operation": "job", "live": False,
     }]
 
 

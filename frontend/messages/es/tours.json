@@ -151,5 +151,15 @@
       "body": "Cada zoom y cada sonido es un bloque aquí, y la pista de música muestra la base bajo la voz. Arrastra un bloque para moverlo, haz doble clic para cambiarlo, o selecciónalo y pulsa Supr. Haz doble clic en un hueco vacío para añadir un sonido."
     }
   },
-  "skip": "Omitir"
+  "skip": "Omitir",
+  "live-clipping": {
+    "intro": {
+      "title": "Recorta tu directo mientras ocurre",
+      "body": "Pega el enlace de tu canal de Twitch, Kick o YouTube mientras estás en directo. SupoClip recorta la parte más reciente, de los últimos 15 minutos a 2 horas, sin esperar al VOD."
+    },
+    "follow": {
+      "title": "O deja que siga recortando",
+      "body": "Activa “Seguir recortando cada 30 min” y llegará una nueva tanda de clips cada media hora hasta que acabe el directo. Cada tanda usa solo sus minutos nuevos y puedes detenerlo cuando quieras desde el proyecto."
+    }
+  }
 }

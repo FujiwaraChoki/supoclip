@@ -306,5 +306,29 @@
     "approxTiming": "Este video no tenía tiempos por palabra, así que los subtítulos y efectos siguen tiempos aproximados.",
     "simplified": "Algunos efectos se simplificaron en este clip."
   },
-  "sourceRange": "Parte {start}–{end}"
+  "sourceRange": "Parte {start}–{end}",
+  "liveFrom": "En directo de {channel}",
+  "liveSource": "Recortado en directo",
+  "liveSession": {
+    "title": "Recortando {channel} en directo",
+    "titleStopped": "{channel} recortado en directo",
+    "nextPart": "próxima parte hacia las {time}",
+    "nextPartSoon": "próxima parte enseguida",
+    "part": "Parte {number}",
+    "thisStream": "este directo",
+    "stopReason": {
+      "user": "lo detuviste",
+      "ended": "el directo terminó",
+      "minutes": "sin minutos este mes",
+      "max_hours": "límite de 12 horas",
+      "plan": "requiere Creator",
+      "errors": "directo inaccesible",
+      "error": "la siguiente parte no pudo empezar",
+      "disabled": "en pausa"
+    },
+    "stop": "Detener",
+    "stopped": "Recorte en directo detenido",
+    "stopFailed": "No se pudo detener el recorte en directo. Inténtalo de nuevo.",
+    "partsLabel": "Partes de este directo"
+  }
 }

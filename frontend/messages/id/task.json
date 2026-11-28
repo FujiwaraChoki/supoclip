@@ -306,5 +306,29 @@
     "approxTiming": "Video ini tidak punya waktu per kata, jadi teks dan efek mengikuti waktu perkiraan.",
     "simplified": "Beberapa efek disederhanakan untuk klip ini."
   },
-  "sourceRange": "Bagian {start}–{end}"
+  "sourceRange": "Bagian {start}–{end}",
+  "liveFrom": "Live dari {channel}",
+  "liveSource": "Diklip saat live",
+  "liveSession": {
+    "title": "Mengklip {channel} secara live",
+    "titleStopped": "{channel} diklip secara live",
+    "nextPart": "bagian berikutnya sekitar {time}",
+    "nextPartSoon": "bagian berikutnya segera",
+    "part": "Bagian {number}",
+    "thisStream": "stream ini",
+    "stopReason": {
+      "user": "dihentikan olehmu",
+      "ended": "stream selesai",
+      "minutes": "menit bulan ini habis",
+      "max_hours": "batas 12 jam tercapai",
+      "plan": "butuh Creator",
+      "errors": "stream tak terjangkau",
+      "error": "bagian berikutnya gagal dimulai",
+      "disabled": "dijeda"
+    },
+    "stop": "Hentikan",
+    "stopped": "Klip live dihentikan",
+    "stopFailed": "Tidak bisa menghentikan klip live. Coba lagi.",
+    "partsLabel": "Bagian stream ini"
+  }
 }

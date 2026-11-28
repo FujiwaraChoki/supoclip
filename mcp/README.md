@@ -360,6 +360,17 @@ second and third hour of a stream: `start_seconds=3600, end_seconds=10800`.
 - Highlights only. Clip timestamps stay on the full video's timeline.
 - An invalid part fails with `INVALID_SOURCE_RANGE`.
 
+### Live streams (Creator plan)
+
+A link to a stream that is live right now (a Twitch or Kick channel, a YouTube
+live or `youtube.com/@channel/live`) fails with `LIVE_STREAM_DETECTED` until you
+say what to clip:
+
+- `live_minutes=30` clips the newest 30 minutes (1-360).
+- `keep_clipping=true` keeps clipping until the stream ends: a new task every 30
+  minutes, each charged only for its new minutes. The result has `live_session_id`.
+- Without the Creator plan this fails with `LIVE_REQUIRES_CREATOR`.
+
 ## Tests
 
 ```bash

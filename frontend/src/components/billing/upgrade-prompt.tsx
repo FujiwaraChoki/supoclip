@@ -22,7 +22,7 @@ import {
   getNextBillingPlan,
   getPublicBillingPlans,
   planPrice,
-  socialPublishingStage,
+  liveClippingAdvertised, socialPublishingStage,
   type BillingInterval,
   type BillingPlanId,
   type PublicBillingPlan,
@@ -43,6 +43,8 @@ export type UpgradeReason =
   | { kind: "custom_fonts" }
   /** Agent is a Creator feature; `trialUsed` when a Pro account has used its free messages. */
   | { kind: "agent"; trialUsed?: boolean }
+  /** Clipping a stream while it is live is a Creator feature. */
+  | { kind: "live" }
   /** A free preview: `more` clips are waiting to be unlocked. */
   | { kind: "preview"; more: number }
   | { kind: "explore" };
@@ -187,6 +189,7 @@ export function useBillingPlanText() {
     perVideo(plan),
     plan.resolution === "1080p" ? t("highlights.fullHd") : t("highlights.hd"),
     ...(plan.scheduling && socialPublishingStage() === "live" ? [t("highlights.scheduling")] : []),
+    ...(plan.id === "scale" && liveClippingAdvertised() ? [t("highlights.live")] : []),
     plan.id === "pro" ? t("highlights.fonts") : t("highlights.priority"),
   ];
   // Shown apart from the highlights with a "Coming soon" tag until publishing launches.
@@ -287,6 +290,12 @@ function copyFor(
         eyebrow: t("upgrade.preview.eyebrow"),
         title: t("upgrade.preview.title", { count: reason.more }),
         body: t("upgrade.preview.body"),
+      };
+    case "live":
+      return {
+        eyebrow: t("upgrade.live.eyebrow"),
+        title: t("upgrade.live.title"),
+        body: t("upgrade.live.body"),
       };
     case "agent":
       return {
@@ -475,7 +484,7 @@ function preferredPlan(reason: UpgradeReason, options: PublicBillingPlan[]): Bil
     const fits = options.find((plan) => plan.youtubeMaxMinutes * 60 >= reason.durationSeconds);
     if (fits) return fits.id;
   }
-  if (reason.kind === "agent") {
+  if (reason.kind === "agent" || reason.kind === "live") {
     const creator = options.find((plan) => plan.id === "scale");
     if (creator) return creator.id;
   }
@@ -616,6 +625,21 @@ function PlanShowcase({
             <li key={perk} className="flex items-start gap-2 text-sm">
               <Check className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
               {text.t(`upgrade.agent.perks.${perk}`)}
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  if (reason.kind === "live") {
+    return (
+      <div className="hidden flex-col justify-center border-l bg-muted/50 p-6 sm:flex">
+        <ul className="space-y-2">
+          {[0, 1, 2].map((perk) => (
+            <li key={perk} className="flex items-start gap-2 text-sm">
+              <Check className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" />
+              {text.t(`upgrade.live.perks.${perk}`)}
             </li>
           ))}
         </ul>

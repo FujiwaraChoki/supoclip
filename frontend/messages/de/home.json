@@ -534,5 +534,24 @@
   "creatorTag": "Creator",
   "agentLapsed": "Deine Agent-Chats sind gespeichert.",
   "agentTrialEnded": "Deine kostenlosen Agent-Nachrichten sind aufgebraucht.",
-  "agentBackWithCreator": "Mit Creator weitermachen"
+  "agentBackWithCreator": "Mit Creator weitermachen",
+  "livePanel": {
+    "title": "{channel} ist live",
+    "windowLabel": "Wie viel schneiden",
+    "wholeStream": "Alles",
+    "follow": "Alle {interval} weiter schneiden",
+    "locked": "Livestreams schneiden ist Teil von Creator.",
+    "cancel": "Abbrechen",
+    "seeCreator": "Creator ansehen",
+    "submitOnce": "Letzte {duration} schneiden",
+    "submitAll": "Alles schneiden",
+    "submitFollow": "Live-Schnitt starten",
+    "tooNew": "Dieser Stream hat gerade erst begonnen. Versuch es in einer Minute noch einmal.",
+    "platforms": {
+      "youtube": "Dieser YouTube-Stream",
+      "twitch": "Dieser Twitch-Stream",
+      "kick": "Dieser Kick-Stream"
+    }
+  },
+  "liveHint": "Gerade live? Füge deinen Kanal-Link ein, um den Stream zu schneiden, während er läuft."
 }

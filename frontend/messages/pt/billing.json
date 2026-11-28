@@ -17,7 +17,8 @@
     "minutes": "{length} de vídeo por mês",
     "hd": "Clipes em 720p",
     "fullHd": "Clipes em Full HD 1080p",
-    "scheduling": "Publique e agende clipes no YouTube e no TikTok automaticamente"
+    "scheduling": "Publique e agende clipes no YouTube e no TikTok automaticamente",
+    "live": "Corte lives enquanto acontecem"
   },
   "runtime": {
     "minutes": "{count} min",
@@ -105,6 +106,16 @@
       "eyebrow": "Seu clipe grátis",
       "title": "{count, plural, one {Desbloqueie o outro clipe} other {Desbloqueie os outros # clipes}}",
       "body": "Eles já foram encontrados e estão esperando. Escolha um plano e eles são feitos aqui mesmo, neste projeto."
+    },
+    "live": {
+      "eyebrow": "Corte ao vivo · Creator",
+      "title": "Corte lives enquanto acontecem",
+      "body": "O Creator corta lives do YouTube, Twitch e Kick enquanto acontecem: a parte mais recente agora, ou um novo lote a cada meia hora até a live acabar.",
+      "perks": {
+        "0": "Corte a parte mais recente de uma live que ainda está rolando",
+        "1": "Continue cortando ao vivo: clipes novos a cada 30 minutos",
+        "2": "Só os minutos de live que você corta são usados"
+      }
     }
   },
   "illustration": {

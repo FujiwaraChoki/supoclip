@@ -534,5 +534,24 @@
   "creatorTag": "Creator",
   "agentLapsed": "Tus chats con Agent están guardados.",
   "agentTrialEnded": "Ya usaste tus mensajes gratis de Agent.",
-  "agentBackWithCreator": "Sigue con Creator"
+  "agentBackWithCreator": "Sigue con Creator",
+  "livePanel": {
+    "title": "{channel} está en directo",
+    "windowLabel": "Cuánto recortar",
+    "wholeStream": "Todo",
+    "follow": "Seguir recortando cada {interval}",
+    "locked": "Recortar directos forma parte de Creator.",
+    "cancel": "Cancelar",
+    "seeCreator": "Ver Creator",
+    "submitOnce": "Recortar últimos {duration}",
+    "submitAll": "Recortarlo todo",
+    "submitFollow": "Empezar a recortar en directo",
+    "tooNew": "Este directo acaba de empezar. Vuelve a intentarlo en un minuto.",
+    "platforms": {
+      "youtube": "Este directo de YouTube",
+      "twitch": "Este directo de Twitch",
+      "kick": "Este directo de Kick"
+    }
+  },
+  "liveHint": "¿Estás en directo? Pega el enlace de tu canal para recortarlo mientras dura."
 }

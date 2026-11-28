@@ -159,6 +159,7 @@ async def test_evaluated_flags_looks_up_the_user_once():
         "creator_agent": True,
         "dynamic_edits": True,
         "instagram_publishing": True,
+        "live_clipping": True,
         "other": True,
         "pebble_onboarding": True,
         "tiktok_publishing": False,

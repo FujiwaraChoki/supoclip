@@ -35,6 +35,10 @@ export type ProductEvents = {
   video_too_long_shown: { source_kind: SourceKind | "unknown"; plan: string; duration_minutes: number; max_minutes: number; range_offered: boolean; upgrade_offered: boolean };
   /** A task was created for a part of a video that was over the limit. */
   source_range_chosen: { source_kind: SourceKind | "unknown"; plan: string; range_minutes: number; start_minutes: number; duration_minutes: number };
+  /** The pasted link was a stream that is live right now (the live panel opened). */
+  live_stream_detected: { platform: "youtube" | "twitch" | "kick"; can_clip_live: boolean; plan: string };
+  /** A live part (or continuous live clipping) was started from the live panel. */
+  live_clip_started: { platform: "youtube" | "twitch" | "kick"; window_minutes: number; follow: boolean; elapsed_minutes: number; plan: string };
   /** "Upgrade to Creator" in the too-long prompt, before checkout opens. */
   video_too_long_upgrade_clicked: { plan: string; target_plan: string; duration_minutes: number };
   editor_opened: { clip_count: number };

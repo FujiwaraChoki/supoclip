@@ -101,6 +101,15 @@ export function socialPublishingStage(): SocialPublishingStage {
   return "soon";
 }
 
+/**
+ * Whether plan pages list live clipping on Creator. It ships behind the `live_clipping`
+ * feature flag; set NEXT_PUBLIC_LIVE_CLIPPING=on once the flag is on for everyone.
+ */
+export function liveClippingAdvertised(): boolean {
+  const value = process.env.NEXT_PUBLIC_LIVE_CLIPPING?.trim().toLowerCase();
+  return value === "on" || value === "1" || value === "live";
+}
+
 export function isBillingInterval(value: unknown): value is BillingInterval {
   return value === "month" || value === "year";
 }

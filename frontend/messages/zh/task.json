@@ -306,5 +306,29 @@
     "approxTiming": "该视频没有逐字时间，字幕和效果使用近似时间。",
     "simplified": "此片段的部分效果已简化。"
   },
-  "sourceRange": "片段 {start}–{end}"
+  "sourceRange": "片段 {start}–{end}",
+  "liveFrom": "来自 {channel} 的直播",
+  "liveSource": "直播剪辑",
+  "liveSession": {
+    "title": "正在直播剪辑 {channel}",
+    "titleStopped": "已直播剪辑 {channel}",
+    "nextPart": "下一部分约在 {time}",
+    "nextPartSoon": "下一部分马上就到",
+    "part": "第 {number} 部分",
+    "thisStream": "这场直播",
+    "stopReason": {
+      "user": "已由你停止",
+      "ended": "直播已结束",
+      "minutes": "本月分钟数已用完",
+      "max_hours": "已达 12 小时上限",
+      "plan": "需要 Creator",
+      "errors": "无法访问直播",
+      "error": "下一部分无法开始",
+      "disabled": "已暂停"
+    },
+    "stop": "停止",
+    "stopped": "直播剪辑已停止",
+    "stopFailed": "无法停止直播剪辑，请重试。",
+    "partsLabel": "这场直播的各部分"
+  }
 }

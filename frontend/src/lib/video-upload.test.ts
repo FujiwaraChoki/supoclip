@@ -147,7 +147,16 @@ describe("supported video source URLs", () => {
     "https://www.youtube.com/embed/ai1gIWacf0I",
   ])("accepts YouTube link %s", (url) => expect(validateVideoSourceUrl(url)).toEqual({ source: "youtube" }));
   it("rejects a YouTube page that is not a video", () => expect(validateVideoSourceUrl("https://www.youtube.com/@creator").error).toBe("Enter a valid YouTube video URL."));
-  it.each(["https://twitch.tv/creator", "https://kick.com/creator"])("rejects live URL %s", (url) => expect(validateVideoSourceUrl(url).error).toContain("Live streams aren't supported"));
+  it.each([
+    ["https://twitch.tv/creator", "twitch"],
+    ["https://kick.com/creator", "kick"],
+    ["https://www.youtube.com/@creator/live", "youtube"],
+  ])("passes live channel %s to the server as a live link", (url, source) => {
+    expect(validateVideoSourceUrl(url)).toEqual({ source, live: true });
+  });
+  it("still rejects a YouTube channel page that isn't /live", () => {
+    expect(validateVideoSourceUrl("https://www.youtube.com/@creator/videos").error).toBeTruthy();
+  });
   it.each([
     ["https://www.twitch.tv/videos", "Enter a valid Twitch VOD or clip URL."],
     ["https://www.twitch.tv/creator/videos", "Enter a valid Twitch VOD or clip URL."],

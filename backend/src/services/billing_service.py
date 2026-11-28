@@ -23,6 +23,8 @@ PAID_PLAN_MINUTE_LIMIT_CONFIG = {
 FULL_HD_SHORT_SIDE = 1080
 HD_SHORT_SIDE = 720
 SCHEDULING_PLANS = {"scale", "team"}
+# Clipping live streams (live_source.py): Creator ("scale") and Team.
+LIVE_CLIPPING_PLANS = {"scale", "team"}
 # Periods longer than this are annual; their allowance still resets monthly.
 MAX_MONTHLY_PERIOD_DAYS = 32
 
@@ -418,6 +420,7 @@ class BillingService:
                 "output_short_side": None,
                 "legacy_hd": False,
                 "can_schedule_posts": True,
+                "can_clip_live": True,
                 "can_create_task": True,
                 "upgrade_required": False,
                 "reason": None,
@@ -486,6 +489,7 @@ class BillingService:
                 "output_short_side": HD_SHORT_SIDE,
                 "legacy_hd": False,
                 "can_schedule_posts": False,
+                "can_clip_live": False,
                 "can_create_task": False,
                 "upgrade_required": True,
                 "reason": (
@@ -564,6 +568,7 @@ class BillingService:
             "output_short_side": FULL_HD_SHORT_SIDE if full_hd else HD_SHORT_SIDE,
             "legacy_hd": legacy_hd,
             "can_schedule_posts": plan in SCHEDULING_PLANS,
+            "can_clip_live": plan in LIVE_CLIPPING_PLANS,
             "can_create_task": can_create,
             "upgrade_required": team_exhausted,
             "reason": reason,

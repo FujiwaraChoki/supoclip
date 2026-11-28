@@ -161,9 +161,10 @@ new optional job argument. No new environment variables are required.
 A source longer than the plan's per-video limit is rejected with 422
 `VIDEO_TOO_LONG`. The detail always carries `duration_seconds`,
 `max_duration_seconds`, `range_allowed: true` and `min_range_seconds`, for
-YouTube, Twitch, Kick and uploads alike. A livestream that is still live, or a
-video whose length can't be read, fails with `VIDEO_DURATION_UNAVAILABLE`
-instead (no range can be picked without a length).
+YouTube, Twitch, Kick and uploads alike. A video whose length can't be read
+fails with `VIDEO_DURATION_UNAVAILABLE` instead (no range can be picked without
+a length). A stream that is still live is clipped as described under "Live
+streams" below, or fails like that when live clipping is off.
 
 Pick one part with `source.start_seconds` and `source.end_seconds` (seconds into
 the video). Either may be left out: start defaults to 0, end to the video's end.
@@ -190,6 +191,43 @@ the video). Either may be left out: start defaults to 0, end to the video's end.
 - Only the part is downloaded where the source allows it (see
   `docs/youtube-download.md`), transcribed and analysed. Each part has its own
   transcript cache entry; the whole video's cache keys are unchanged.
+
+### Live streams (Creator plan)
+
+With the `live_clipping` feature flag on, a stream that is live right now can be
+clipped while it lasts (design: `docs/live-clipping.md`). Live links: a Twitch or
+Kick channel (`twitch.tv/<channel>`, `kick.com/<channel>`), a YouTube channel's
+`/live` page, or a YouTube video that is live.
+
+- Without `source.live`, a live link is refused with 422 `LIVE_STREAM_DETECTED`:
+  `live` (`platform`, `channel`, `title`, `elapsed_seconds`, `started_at`),
+  `can_clip_live`, `max_window_seconds`, `default_window_seconds` and
+  `follow_interval_seconds`. Nothing is charged.
+- `source.live` clips the newest part:
+
+  ```json
+  {"source": {"url": "https://www.twitch.tv/somestreamer", "live": {"window_seconds": 1800, "follow": false}}}
+  ```
+
+  `window_seconds` is 60–21600 (capped at the plan's per-video limit), `true`
+  means the default 30 minutes. It can't be combined with `start_seconds` /
+  `end_seconds`. The response adds `live` (the stream and the part's
+  `start_seconds`/`end_seconds` on its recording). Without Creator or Team: 402
+  `LIVE_REQUIRES_CREATOR`. Other refusals: `STREAM_NOT_LIVE`, `LIVE_NO_RECORDING`,
+  `LIVE_TOO_SHORT`, `LIVE_PLATFORM_UNAVAILABLE` (422) and `LIVE_UNAVAILABLE` (503).
+- `"follow": true` also keeps clipping: a new task every 30 minutes while the
+  stream is live and one after it ends, each billed for its new minutes. The
+  response adds `live_session_id`. Following a stream that is already followed
+  returns that session (`already_following: true`) and its latest task.
+- `GET /tasks/{id}` of a live part returns `live` (`platform`, `channel`,
+  `session_id`, `part_number`, ...) and, for a followed stream, `live_session`
+  with every part so far.
+- `GET /live-sessions/` lists the workspace's sessions; `GET /live-sessions/{id}`
+  returns one with its `parts` (`task_id`, `start_seconds`, `end_seconds`,
+  `task_status`, `clips_count`); `POST /live-sessions/{id}/stop` stops adding
+  parts (parts already made keep their clips). `status` is `active`, `ended`,
+  `stopped` or `failed`, with a `stop_reason` (`user`, `ended`, `minutes`,
+  `max_hours`, `plan`, `errors`, `error`, `disabled`).
 
 ### Workflows
 

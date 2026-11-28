@@ -109,12 +109,17 @@ from ...clip_editor import export_with_preset, EXPORT_PRESETS
 
 from ...source_range import (
     METADATA_KEY as SOURCE_RANGE_KEY,
+    RequestedRange,
     SourceRangeError,
     parse_requested_range,
     resolve_source_range,
     video_too_long_detail,
     workflow_supports_range,
 )
+from dataclasses import dataclass, replace as dataclass_replace
+from ...feature_flags import LIVE_CLIPPING
+from ...live_source import LiveSourceError, LiveStream, LiveWindow, live_channel_url, resolve_live_stream, window_for
+from ...live_sessions import LivePart, find_active_session, live_clipping_allowed, part_options, start_session
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -164,6 +169,163 @@ def _duration_unavailable_error(platform: str) -> HTTPException:
             ),
         },
     )
+
+
+LIVE_WINDOW_DEFAULT_SECONDS = 1800
+LIVE_WINDOW_MAX_SECONDS = 6 * 3600
+LIVE_REQUIRES_CREATOR_MESSAGE = (
+    "Clipping live streams is part of the Creator plan. Upgrade to clip the stream while it's live, "
+    "or clip the recording once it ends."
+)
+
+
+@dataclass
+class _LiveCapture:
+    """A live stream turned into a part of its recording (live_source.py)."""
+
+    stream: LiveStream
+    window: LiveWindow
+    follow: bool
+    part: Optional[LivePart] = None
+
+    def public(self) -> Dict[str, Any]:
+        return {
+            **self.stream.public(),
+            "start_seconds": self.window.start,
+            "end_seconds": self.window.end,
+            **({"session_id": self.part.session_id, "part_number": self.part.part_number} if self.part else {}),
+        }
+
+    def metadata(self) -> Dict[str, Any]:
+        return {
+            "platform": self.stream.platform,
+            "channel": self.stream.channel,
+            "channel_url": self.stream.channel_url,
+            "recording_id": self.stream.recording_id,
+            "started_at": self.stream.started_at,
+            "captured_at": self.stream.checked_at,
+            "final": self.stream.final,
+            **({"session_id": self.part.session_id, "part_number": self.part.part_number} if self.part else {}),
+        }
+
+
+def _parse_live_request(raw_source: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """``source.live``: ``true`` or ``{"window_seconds": 1800, "follow": false}``."""
+    live = raw_source.get("live")
+    if live is None or live is False:
+        return None
+    if live is True:
+        live = {}
+    if not isinstance(live, dict):
+        raise HTTPException(status_code=422, detail="source.live must be true or an object")
+    if raw_source.get("start_seconds") is not None or raw_source.get("end_seconds") is not None:
+        raise HTTPException(
+            status_code=422,
+            detail="Pick either a part of a video (start_seconds/end_seconds) or source.live, not both.",
+        )
+    window = live.get("window_seconds", LIVE_WINDOW_DEFAULT_SECONDS)
+    if isinstance(window, bool) or not isinstance(window, (int, float)) or not math.isfinite(window):
+        raise HTTPException(status_code=422, detail="source.live.window_seconds must be a number of seconds")
+    if not 60 <= window <= LIVE_WINDOW_MAX_SECONDS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"source.live.window_seconds must be between 60 and {LIVE_WINDOW_MAX_SECONDS}",
+        )
+    return {"window_seconds": float(window), "follow": live.get("follow") is True}
+
+
+def _live_error(exc: LiveSourceError) -> HTTPException:
+    return HTTPException(status_code=exc.status, detail=exc.to_detail())
+
+
+async def _live_enabled(db, request: Request, user_id: str) -> bool:
+    if db is None:
+        return False
+    try:
+        return await feature_enabled(db, LIVE_CLIPPING, platform=client_platform(request), user_id=user_id)
+    except Exception:  # noqa: BLE001 - an unreadable flag keeps live sources off, as before
+        logger.warning("Could not read the live_clipping flag", exc_info=True)
+        return False
+
+
+def _live_detected(stream: LiveStream, allowed: bool, max_seconds: Optional[float]) -> HTTPException:
+    """The source is live and the request didn't say what to clip: the client asks."""
+    return HTTPException(
+        status_code=422,
+        detail={
+            "code": "LIVE_STREAM_DETECTED",
+            "message": (
+                f"{stream.channel or 'This stream'} is live right now. Choose how much of it to clip"
+                + ("." if allowed else ". Clipping live streams is part of the Creator plan.")
+            ),
+            "live": stream.public(),
+            "can_clip_live": allowed,
+            "max_window_seconds": int(min(max_seconds or LIVE_WINDOW_MAX_SECONDS, LIVE_WINDOW_MAX_SECONDS)),
+            "default_window_seconds": LIVE_WINDOW_DEFAULT_SECONDS,
+            "follow_interval_seconds": get_config().live_follow_interval_seconds,
+        },
+    )
+
+
+async def _capture_live(
+    request: Request, db, *, user_id: str, team_id: Optional[str], url: str,
+    live_request: Optional[Dict[str, Any]], live_part: Optional[LivePart], workflow: str, preview: bool,
+) -> Optional[_LiveCapture]:
+    """Resolve a live source into a part of its recording, or None for a normal source.
+
+    None when live clipping is off for this platform (a live URL then fails as it
+    always did) or a YouTube watch URL turned out not to be live.
+    """
+    if live_part is None and not await _live_enabled(db, request, user_id):
+        return None
+    if preview:
+        raise HTTPException(status_code=422, detail="A free preview makes highlights from a whole video, not a live stream.")
+    if not workflow_supports_range(workflow):
+        raise HTTPException(status_code=422, detail=SourceRangeError(
+            "Live clipping makes highlights. Choose highlights to clip a live stream."
+        ).to_detail())
+    if live_part is not None:
+        stream = live_part.stream
+    else:
+        try:
+            stream = await run_in_thread(resolve_live_stream, url)
+        except LiveSourceError as exc:
+            if exc.code == "STREAM_NOT_LIVE" and live_request is None and live_channel_url(url) is None:
+                return None
+            raise _live_error(exc) from None
+    allowed, summary = await live_clipping_allowed(db, user_id, team_id)
+    max_seconds = summary.get("max_youtube_duration_seconds") or None
+    if live_part is None and live_request is None:
+        raise _live_detected(stream, allowed, max_seconds)
+    if not allowed:
+        raise HTTPException(
+            status_code=402,
+            detail={"code": "LIVE_REQUIRES_CREATOR", "message": LIVE_REQUIRES_CREATOR_MESSAGE},
+        )
+    try:
+        if live_part is not None:
+            window = window_for(stream, from_seconds=live_part.from_seconds, max_seconds=max_seconds)
+        else:
+            window = window_for(stream, window_seconds=live_request["window_seconds"], max_seconds=max_seconds)
+    except LiveSourceError as exc:
+        raise _live_error(exc) from None
+    return _LiveCapture(
+        stream=stream, window=window,
+        follow=bool(live_request and live_request.get("follow")) and live_part is None,
+        part=live_part,
+    )
+
+
+async def _detected_if_live(request: Request, db, user_id: str, team_id: Optional[str], url: str) -> None:
+    """A YouTube video with no length may be live: say so instead of "couldn't verify"."""
+    if not await _live_enabled(db, request, user_id):
+        return
+    try:
+        stream = await run_in_thread(resolve_live_stream, url)
+    except LiveSourceError:
+        return
+    allowed, summary = await live_clipping_allowed(db, user_id, team_id)
+    raise _live_detected(stream, allowed, summary.get("max_youtube_duration_seconds") or None)
 
 
 async def _preflight_youtube_source(url: str, duration_limit: Optional[int]) -> Dict[str, Any]:
@@ -762,7 +924,11 @@ async def create_task(request: Request, db: AsyncSession = Depends(get_db)):
     return response
 
 
-async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttempt):
+async def _create_task(
+    request: Request, db: AsyncSession, attempt: SourceAttempt, *,
+    auth_ctx: Optional[AuthContext] = None, live_part: Optional[LivePart] = None,
+):
+    """``auth_ctx`` and ``live_part`` are only passed by the live-session cron (live_sessions.py)."""
     data = await _read_json_object(request)
 
     raw_source = data.get("source")
@@ -774,7 +940,9 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         requested_range = parse_requested_range(raw_source)
     except SourceRangeError as exc:
         raise HTTPException(status_code=422, detail=exc.to_detail()) from None
-    auth_ctx = await _get_auth_context(request, db)
+    live_request = _parse_live_request(raw_source)
+    if auth_ctx is None:
+        auth_ctx = await _get_auth_context(request, db)
     user_id = auth_ctx.user_id
     team_id = auth_ctx.team_id
     attempt.note_user(user_id)
@@ -851,6 +1019,33 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
     # if it was made with the same style and caption template. Without them, an
     # in-flight task that renders dynamic edits is never the same job (the lookup skips it).
     edit_identity = {"edit_identity": (edit_style_json, caption_template or "default")} if fx_requested else {}
+    live_capture: Optional[_LiveCapture] = None
+    if live_part is not None or live_request is not None or live_channel_url(raw_source["url"]) is not None:
+        live_capture = await _capture_live(
+            request, db, user_id=user_id, team_id=team_id, url=raw_source["url"].strip(),
+            live_request=live_request, live_part=live_part, workflow=workflow_spec.workflow, preview=preview,
+        )
+    if live_capture is not None:
+        if live_capture.follow:
+            existing_session = await find_active_session(
+                db, user_id, team_id, live_capture.stream.platform, live_capture.stream.recording_id,
+            )
+            if existing_session is not None:
+                from ...live_sessions import session_parts
+
+                parts = [part for part in await session_parts(db, str(existing_session.id)) if part["task_id"]]
+                return {
+                    "task_id": parts[-1]["task_id"] if parts else None,
+                    "live_session_id": str(existing_session.id),
+                    "already_following": True,
+                    "message": "Already clipping this stream",
+                }
+        # From here on this is a part of the recording, like any picked part of a VOD.
+        raw_source["url"] = live_capture.stream.recording_url
+        raw_source["title"] = raw_source.get("title") or live_capture.stream.title or (
+            f"{live_capture.stream.channel} live" if live_capture.stream.channel else None
+        )
+        requested_range = RequestedRange(float(live_capture.window.start), float(live_capture.window.end))
     workflow_options = workflow_spec.options.to_json()
     cleanup_settings = new_task_cleanup_settings(data)
     if not raw_source or not raw_source.get("url"):
@@ -955,8 +1150,17 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
         )
         # With a picked part the whole video may be longer than the plan allows.
         whole_video_limit = None if requested_range is not None else duration_limit
-        if source_type == "youtube":
-            metadata = await _preflight_youtube_source(raw_source["url"], whole_video_limit)
+        if live_capture is not None:
+            # The recording is still growing; what exists so far was measured just now.
+            source_title = source_title or f"{source_type.title()} live stream"
+            duration_seconds = float(live_capture.stream.recorded_seconds)
+        elif source_type == "youtube":
+            try:
+                metadata = await _preflight_youtube_source(raw_source["url"], whole_video_limit)
+            except HTTPException as exc:
+                if isinstance(exc.detail, dict) and exc.detail.get("code") == "VIDEO_DURATION_UNAVAILABLE":
+                    await _detected_if_live(request, db, user_id, team_id, raw_source["url"])
+                raise
             source_title = source_title or metadata.get("title") or "YouTube Video"
             duration_seconds = float(metadata["duration"])
         elif source_type in {"twitch", "kick"}:
@@ -971,12 +1175,18 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
             )
 
         try:
-            source_range = resolve_source_range(requested_range, duration_seconds, duration_limit)
+            source_range = resolve_source_range(
+                requested_range, duration_seconds, duration_limit, keep_whole=live_capture is not None,
+            )
         except SourceRangeError as exc:
             raise HTTPException(status_code=422, detail=exc.to_detail()) from None
         # Minutes are charged for the part that is processed, and refunded the same.
         if source_range is not None:
             duration_seconds = source_range.length
+        if live_capture is not None and source_range is not None:
+            source_range = dataclass_replace(source_range, live=True, fresh_after=live_capture.window.fresh_after)
+            # A continuous part overlaps the previous one; only new stream is billed.
+            duration_seconds = max(1.0, min(source_range.length, live_capture.window.billed_seconds))
 
         try:
             check_source_duration(workflow_spec, duration_seconds)
@@ -1073,6 +1283,7 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                             **({"source_key": source_key} if source_key else {}),
                             **_stream_resolution_metadata(stream_metadata),
                             **({SOURCE_RANGE_KEY: source_range.to_metadata()} if source_range else {}),
+                            **({"live": live_capture.metadata()} if live_capture is not None else {}),
                         },
                         source_url=raw_source["url"],
                         source_type=source_type,
@@ -1122,6 +1333,8 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                     "source_kind": source_kind(source_type, raw_source["url"]),
                     "source_duration_seconds": math.ceil(duration_seconds),
                     **({"source_range": True} if source_range else {}),
+                    **({"live": "part" if live_capture.part else ("follow" if live_capture.follow else "snapshot"),
+                        "live_platform": live_capture.stream.platform} if live_capture is not None else {}),
                     "has_instructions": bool(workflow_spec.options.instructions),
                     "plan": billing.get("plan") if isinstance(billing, dict) else None,
                     "client": request_client(request),
@@ -1133,11 +1346,20 @@ async def _create_task(request: Request, db: AsyncSession, attempt: SourceAttemp
                 },
             )
 
-            return {
+            response = {
                 "task_id": task_id,
                 "job_id": job_id,
                 "message": "Task created and queued for processing",
             }
+            if live_capture is not None:
+                response["live"] = live_capture.public()
+                if live_capture.follow:
+                    response["live_session_id"] = await start_session(
+                        db, user_id=user_id, team_id=team_id, stream=live_capture.stream,
+                        covered_until=live_capture.window.end, options=part_options(data),
+                        first_task_id=task_id, first_start=live_capture.window.start,
+                    )
+            return response
 
     except GenerationAllowanceBusy as e:
         raise HTTPException(status_code=409, detail=str(e), headers={"Retry-After": "1"})
@@ -1277,6 +1499,8 @@ async def get_task(
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
 
+        if task.get("live") and db is not None:
+            task["live_session"] = await _live_session_for_task(db, task_id)
         return task
 
     except HTTPException:
@@ -1284,6 +1508,20 @@ async def get_task(
     except Exception as e:
         logger.error(f"Error retrieving task: {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving task: {str(e)}")
+
+
+async def _live_session_for_task(db, task_id: str) -> Optional[Dict[str, Any]]:
+    """The continuous live session this task is a part of, with every part so far."""
+    from ...live_sessions import session_for_task, session_parts, session_public
+
+    try:
+        row = await session_for_task(db, task_id)
+        if row is None:
+            return None
+        return {**session_public(row, await session_parts(db, str(row.id))), "part_number": row.part_number}
+    except Exception:  # noqa: BLE001 - the task page must load without it
+        logger.warning("Could not load the live session of task %s", task_id, exc_info=True)
+        return None
 
 
 @router.get("/{task_id}/clips")
