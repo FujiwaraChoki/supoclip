@@ -6,7 +6,7 @@ Add a line here when a pull request changes something a user can see. Use **New*
 
 ## 2026-11-28
 
-- **Fixed:** YouTube downloads solve YouTube's playback challenge again. The previous downloader version failed it on every video, which could make YouTube downloads slower or leave out some video qualities. ([#PR](https://github.com/FujiwaraChoki/supoclip/pull/PR))
+- **Fixed:** YouTube downloads solve YouTube's playback challenge again. The previous downloader version failed it on every video, which could make YouTube downloads slower or leave out some video qualities. ([#599](https://github.com/FujiwaraChoki/supoclip/pull/599))
 - **Improved:** Clip generation renders roughly 3× faster end-to-end with the same visual quality. Rendering now bounds encoder threads to prevent CPU contention, avoids redundant re-encoding on 720p plans, runs caption detection and layout checks in parallel, and renders multiple clips of a video at the same time. ([#597](https://github.com/FujiwaraChoki/supoclip/pull/597))
 
 ## 2026-11-27
